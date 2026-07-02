@@ -190,14 +190,14 @@ def notify_text(session_type, flag, race_name, session_name, lead_text, when_loc
     )
 
 
-def next_session_text(session_type, flag, race_name, session_name, when_local, circuit, city, countdown) -> str:
+def next_session_text(session_type, flag, gp, track_ru, country_ru, session_name, when_local, countdown) -> str:
     icon = _session_icon(session_type)
     return (
-        "⏭ <b>Ближайшая сессия</b>\n\n"
-        f"{esc(flag)} <b>{esc(race_name)}</b>\n"
-        f"{icon} {esc(session_name)}\n\n"
+        "🔜 <b>Ближайшая сессия</b>\n\n"
+        f"{esc(flag)} <b>Гран-при {esc(gp)}</b>\n"
+        f"<i>{esc(track_ru)} · {esc(country_ru)}</i>\n\n"
+        f"{icon} <b>{esc(session_name)}</b>\n"
         f"🕐 {esc(when_local)}\n"
-        f"📍 {esc(circuit)}, {esc(city)}\n\n"
         f"⏳ До старта: <b>{esc(countdown)}</b>"
     )
 

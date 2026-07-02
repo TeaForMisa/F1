@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
+
+from aiogram.types import FSInputFile
 
 import circuits
 import db
@@ -18,23 +21,29 @@ from config import config
 
 log = logging.getLogger(__name__)
 
+# Локальные схемы трасс (необязательно): assets/circuits/<circuit_id>.png|jpg|…
+_CIRCUITS_DIR = Path(__file__).resolve().parent / "assets" / "circuits"
 
-async def render_next(tz: str) -> str:
+
+async def render_next(tz: str) -> tuple[str, object]:
+    """Возвращает (подпись, circuit_id|None). circuit_id None — нет фото/сезон завершён."""
     now = datetime.now(timezone.utc)
     session = await db.get_next_session(now)
     if not session:
-        return texts.NO_NEXT_SESSION.format(season=config.f1_season)
+        return texts.NO_NEXT_SESSION.format(season=config.f1_season), None
     start = datetime.fromisoformat(session["start_time_utc"])
-    return texts.next_session_text(
+    info = circuits.info(session["circuit_id"]) or {}
+    caption = texts.next_session_text(
         session_type=session["session_type"],
         flag=session["flag_emoji"],
-        race_name=session["race_name"],
+        gp=info.get("gp") or session["race_name"],
+        track_ru=info.get("track") or session["circuit"],
+        country_ru=info.get("country") or session["country"],
         session_name=session["session_name"],
         when_local=texts.fmt_dt_local(start, tz),
-        circuit=session["circuit"],
-        city=session["city"],
         countdown=texts.fmt_countdown(start, now),
     )
+    return caption, session["circuit_id"]
 
 
 async def render_schedule(tz: str) -> str:
@@ -113,7 +122,16 @@ def render_track_history(row) -> str:
     )
 
 
-def circuit_image(circuit_id) -> str | None:
+def circuit_photo(circuit_id):
+    """
+    Изображение схемы трассы для answer_photo:
+    локальный файл (assets/circuits/<id>.*) → URL официальной схемы F1 → None.
+    """
+    if circuit_id:
+        for ext in ("png", "jpg", "jpeg", "webp"):
+            local = _CIRCUITS_DIR / f"{circuit_id}.{ext}"
+            if local.exists():
+                return FSInputFile(local)
     return circuits.image_url(circuit_id)
 
 

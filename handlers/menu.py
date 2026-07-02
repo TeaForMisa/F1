@@ -23,14 +23,13 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, FSInputFile, Message
+from aiogram.types import CallbackQuery, Message
 
 import circuits
 import db
@@ -44,21 +43,6 @@ log = logging.getLogger(__name__)
 router = Router(name="menu")
 
 _VALID_LEADS = {"2h", "1h", "30min"}
-
-# Локальные схемы трасс (необязательно): assets/circuits/<circuit_id>.png|jpg.
-# Имеют приоритет над официальной схемой F1 — удобно для трасс, у которых на
-# сайте F1 схемы ещё нет (например, новый «Мадринг»).
-_CIRCUITS_DIR = Path(__file__).resolve().parent.parent / "assets" / "circuits"
-
-
-def _circuit_photo(circuit_id):
-    """Локальный файл схемы, иначе URL официальной схемы F1, иначе None."""
-    if circuit_id:
-        for ext in ("png", "jpg", "jpeg", "webp"):
-            local = _CIRCUITS_DIR / f"{circuit_id}.{ext}"
-            if local.exists():
-                return FSInputFile(local)
-    return render.circuit_image(circuit_id)
 
 
 class MenuTz(StatesGroup):
@@ -149,8 +133,17 @@ async def cb_main(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "menu:next")
 async def cb_next(callback: CallbackQuery) -> None:
     user = await db.get_user(callback.from_user.id)
-    text = await render.render_next(_tz_of(user))
-    await _show(callback, text, kb.next_view_kb())
+    caption, circuit_id = await render.render_next(_tz_of(user))
+    markup = kb.next_view_kb()
+    photo = render.circuit_photo(circuit_id)
+
+    if callback.message.photo:
+        # Уже на фото-сообщении (нажали «Обновить») — меняем подпись на месте.
+        await _update(callback, caption, markup)
+    elif photo:
+        await _to_photo(callback, photo, caption, markup)
+    else:
+        await _show(callback, caption, markup)
 
 
 async def _build_calendar() -> tuple[str, object]:
@@ -199,7 +192,7 @@ async def cb_round(callback: CallbackQuery) -> None:
     user = await db.get_user(callback.from_user.id)
     caption = render.render_track_page(sessions, _tz_of(user))
     markup = kb.track_page_kb(round_no)
-    image = _circuit_photo(sessions[0]["circuit_id"])
+    image = render.circuit_photo(sessions[0]["circuit_id"])
 
     if callback.message.photo:
         # Уже на фото-странице (вернулись из «Где смотреть»/«История») — меняем подпись.
