@@ -11,7 +11,10 @@
 - **⚙️ Настройка** — можно отключить любой из трёх интервалов
 - **📊 Админ-панель** — статистика, список пользователей, рассылка, обновление кеша
 - **🔒 Безопасность** — защита от HTML-инъекций, троттлинг спама, валидация ввода
-- **💾 Память** — все настройки и лог уведомлений в SQLite, переживает рестарты
+- **💾 Память** — настройки, лог уведомлений и состояния диалогов в SQLite,
+  переживают рестарты и пересборки контейнера (на Bothost — папка `/app/data`)
+- **📋 Кнопка «Меню»** — все команды доступны из нативного меню Telegram
+  (у админов в меню дополнительно видны админ-команды)
 
 ## Команды пользователя
 
@@ -25,6 +28,7 @@
 | `/constructors` | Очки команд |
 | `/timezone` | Сменить часовой пояс |
 | `/settings` | Включить/выключить интервалы уведомлений |
+| `/cancel` | Отменить текущее действие (ввод пояса, рассылку) |
 
 ## Админ-команды (только для ADMIN_IDS)
 
@@ -86,17 +90,20 @@ f1-bot/
 ├── main.py              # точка входа, middleware, graceful shutdown
 ├── config.py            # конфиг из .env
 ├── security.py          # esc(), ThrottlingMiddleware, валидаторы
-├── db.py                # SQLite + статистика + очистка
-├── f1_api.py            # Jolpica-F1 + кеш зачётов
+├── db.py                # SQLite: пользователи, кеш сессий, FSM, статистика
+├── fsm_storage.py       # персистентное FSM-хранилище (переживает рестарты)
+├── f1_api.py            # Jolpica-F1 + кеш зачётов + общий HTTP-клиент
 ├── texts.py             # тексты с экранированием HTML
 ├── keyboards.py         # клавиатуры
+├── commands.py          # кнопка «Меню» (set_my_commands)
 ├── scheduler.py         # уведомления + ежедневная очистка
 ├── handlers/
 │   ├── admin.py         # /stats /users /user /broadcast /refresh
-│   ├── common.py        # /start, /help
+│   ├── common.py        # /start, /help, /cancel
 │   ├── timezone.py      # /timezone
 │   ├── settings.py      # /settings
 │   └── info.py          # /next /schedule /standings /constructors
+├── assets/              # welcome.jpg — фото приветствия (опционально)
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore

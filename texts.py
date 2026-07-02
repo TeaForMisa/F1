@@ -124,21 +124,49 @@ def schedule_item(session_type, session_name, when_local) -> str:
     return f"\n{icon} <b>{esc(session_name)}</b>\n    🕐 {esc(when_local)}\n"
 
 
-_MEDALS = {"1": "🥇", "2": "🥈", "3": "🥉"}
+# Обычный (проприорциональный) шрифт Telegram делает выравнивание через
+# "—" невозможным — колонки "прыгают", когда имена/команды разной длины.
+# Поэтому зачёты рендерятся моноширинной таблицей внутри <pre>: там ширина
+# каждого символа одинакова, и пробелы-заполнители реально выравнивают колонки,
+# при этом сами имена и названия команд не сокращаются.
 
 
-def _position_marker(pos) -> str:
-    return _MEDALS.get(str(pos), f"{esc(pos)}.")
+def standings_table(season: int, rows: list[tuple]) -> str:
+    """rows: список (pos, flag, name, team, pts)."""
+    header = STANDINGS_HEADER.format(season=season)
+    if not rows:
+        return header + STANDINGS_EMPTY
+
+    name_w = max(len(str(r[2])) for r in rows)
+    team_w = max(len(str(r[3])) for r in rows)
+    pts_w = max(len(str(r[4])) for r in rows)
+
+    lines = []
+    for pos, flag, name, team, pts in rows:
+        name_col = esc(str(name).ljust(name_w))
+        team_col = esc(str(team).ljust(team_w))
+        pts_col = esc(str(pts).rjust(pts_w))
+        lines.append(f"{esc(pos):>2}. {esc(flag)} {name_col}  {team_col}  {pts_col}")
+
+    return f"{header}<pre>{chr(10).join(lines)}</pre>"
 
 
-def standings_row(pos, flag, name, team, pts) -> str:
-    marker = _position_marker(pos)
-    return f"{marker} {esc(flag)} <b>{esc(name)}</b> — {esc(team)} — <b>{esc(pts)}</b>\n"
+def constructors_table(season: int, rows: list[tuple]) -> str:
+    """rows: список (pos, flag, name, pts)."""
+    header = CONSTRUCTORS_HEADER.format(season=season)
+    if not rows:
+        return header + CONSTRUCTORS_EMPTY
 
+    name_w = max(len(str(r[2])) for r in rows)
+    pts_w = max(len(str(r[3])) for r in rows)
 
-def constructors_row(pos, flag, name, pts) -> str:
-    marker = _position_marker(pos)
-    return f"{marker} {esc(flag)} <b>{esc(name)}</b> — <b>{esc(pts)}</b>\n"
+    lines = []
+    for pos, flag, name, pts in rows:
+        name_col = esc(str(name).ljust(name_w))
+        pts_col = esc(str(pts).rjust(pts_w))
+        lines.append(f"{esc(pos):>2}. {esc(flag)} {name_col}  {pts_col}")
+
+    return f"{header}<pre>{chr(10).join(lines)}</pre>"
 
 
 STANDINGS_HEADER = "🏆 <b>Личный зачёт — пилоты {season}</b>\n\n"

@@ -8,7 +8,6 @@ import asyncio
 import logging
 import time as _time
 from datetime import datetime, timezone
-from typing import Any
 
 import httpx
 
@@ -19,6 +18,29 @@ log = logging.getLogger(__name__)
 
 API_BASE = "https://api.jolpi.ca/ergast/f1"
 TIMEOUT = 20.0
+
+# Один переиспользуемый клиент с keep-alive вместо нового соединения
+# (DNS + TCP + TLS handshake) на каждый запрос.
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(
+            headers={"User-Agent": "F1TelegramBot/1.0"},
+            timeout=TIMEOUT,
+        )
+    return _client
+
+
+async def close_client() -> None:
+    """Закрыть HTTP-клиент при остановке бота."""
+    global _client
+    if _client is not None and not _client.is_closed:
+        await _client.aclose()
+    _client = None
+
 
 COUNTRY_FLAGS = {
     "Australia": "🇦🇺", "China": "🇨🇳", "Japan": "🇯🇵", "Bahrain": "🇧🇭",
@@ -72,25 +94,30 @@ def _parse_dt(date_str: str, time_str: str | None) -> datetime:
     return dt.replace(tzinfo=timezone.utc)
 
 
-async def _fetch_season_races(client: httpx.AsyncClient) -> list[dict]:
-    url = f"{API_BASE}/{config.f1_season}.json"
-    for attempt in range(1, 4):
+async def _get_json_with_retry(url: str, attempts: int = 3) -> dict:
+    """GET c ретраями и экспоненциальной паузой между попытками."""
+    client = _get_client()
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
         try:
-            r = await client.get(url, timeout=TIMEOUT)
+            r = await client.get(url)
             r.raise_for_status()
-            data = r.json()
-            return data["MRData"]["RaceTable"].get("Races", [])
+            return r.json()
         except Exception as e:
-            log.warning("Попытка %d получить календарь: %s", attempt, e)
-            if attempt == 3:
-                raise
-            await asyncio.sleep(1.5 * attempt)
-    return []
+            last_error = e
+            log.warning("Попытка %d/%d запроса %s: %s", attempt, attempts, url, e)
+            if attempt < attempts:
+                await asyncio.sleep(1.5 * attempt)
+    raise last_error  # type: ignore[misc]
+
+
+async def _fetch_season_races() -> list[dict]:
+    data = await _get_json_with_retry(f"{API_BASE}/{config.f1_season}.json")
+    return data["MRData"]["RaceTable"].get("Races", [])
 
 
 async def refresh_sessions_cache() -> int:
-    async with httpx.AsyncClient(headers={"User-Agent": "F1TelegramBot/1.0"}) as client:
-        races = await _fetch_season_races(client)
+    races = await _fetch_season_races()
 
     sessions: list[dict] = []
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -146,17 +173,9 @@ async def _fetch_standings(endpoint: str, list_key: str, cache_key: str) -> list
         if now - ts < config.standings_cache_ttl:
             return data
 
-    async with httpx.AsyncClient(headers={"User-Agent": "F1TelegramBot/1.0"}) as client:
-        r = await client.get(
-            f"{API_BASE}/{config.f1_season}/{endpoint}.json", timeout=TIMEOUT
-        )
-        r.raise_for_status()
-        data = r.json()
-        standings = data["MRData"]["StandingsTable"]["StandingsLists"]
-        if not standings:
-            result: list[dict] = []
-        else:
-            result = standings[0].get(list_key, [])
+    data = await _get_json_with_retry(f"{API_BASE}/{config.f1_season}/{endpoint}.json")
+    standings = data["MRData"]["StandingsTable"]["StandingsLists"]
+    result: list[dict] = standings[0].get(list_key, []) if standings else []
 
     _cache[cache_key] = (now, result)
     return result

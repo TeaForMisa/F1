@@ -1,6 +1,7 @@
 """Конфигурация бота. Значения берутся из переменных окружения / .env файла."""
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,20 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
+
+log = logging.getLogger(__name__)
+
+
+def _int_env(name: str, default: int) -> int:
+    """Прочитать целочисленную переменную окружения; при мусоре — default, не падение."""
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        log.warning("Переменная %s=%r не число — использую %d", name, raw, default)
+        return default
 
 
 def _parse_admin_ids(raw: str) -> tuple[int, ...]:
@@ -58,12 +73,12 @@ class Config:
             bot_token=token,
             default_timezone=os.getenv("DEFAULT_TIMEZONE", "Europe/Moscow").strip(),
             db_path=db_path,
-            f1_season=int(os.getenv("F1_SEASON", "2026")),
-            scheduler_interval=int(os.getenv("SCHEDULER_INTERVAL", "30")),
+            f1_season=_int_env("F1_SEASON", 2026),
+            scheduler_interval=_int_env("SCHEDULER_INTERVAL", 30),
             admin_ids=_parse_admin_ids(os.getenv("ADMIN_IDS", "")),
-            throttle_seconds=int(os.getenv("THROTTLE_SECONDS", "3")),
-            standings_cache_ttl=int(os.getenv("STANDINGS_CACHE_TTL", "300")),
-            max_tz_input_length=int(os.getenv("MAX_TZ_INPUT_LENGTH", "50")),
+            throttle_seconds=_int_env("THROTTLE_SECONDS", 3),
+            standings_cache_ttl=_int_env("STANDINGS_CACHE_TTL", 300),
+            max_tz_input_length=_int_env("MAX_TZ_INPUT_LENGTH", 50),
         )
 
     def is_admin(self, user_id: int) -> bool:

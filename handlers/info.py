@@ -89,21 +89,22 @@ async def cmd_standings(message: Message) -> None:
         await message.answer(texts.STANDINGS_EMPTY)
         return
 
-    lines = [texts.STANDINGS_HEADER.format(season=config.f1_season)]
+    rows = []
     for s in standings:
         d = s["Driver"]
         team = s["Constructors"][0]["name"] if s.get("Constructors") else "—"
         name = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
-        lines.append(
-            texts.standings_row(
-                pos=s.get("position", "?"),
-                flag=f1_api.nationality_flag(d.get("nationality")),
-                name=name,
-                team=team,
-                pts=s.get("points", "0"),
-            )
-        )
-    await message.answer("".join(lines), parse_mode="HTML")
+        rows.append((
+            s.get("position", "?"),
+            f1_api.nationality_flag(d.get("nationality")),
+            name,
+            team,
+            s.get("points", "0"),
+        ))
+    await message.answer(
+        texts.standings_table(config.f1_season, rows),
+        parse_mode="HTML",
+    )
 
 
 @router.message(Command("constructors"))
@@ -119,15 +120,16 @@ async def cmd_constructors(message: Message) -> None:
         await message.answer(texts.CONSTRUCTORS_EMPTY)
         return
 
-    lines = [texts.CONSTRUCTORS_HEADER.format(season=config.f1_season)]
+    rows = []
     for s in standings:
         c = s.get("Constructor", {})
-        lines.append(
-            texts.constructors_row(
-                pos=s.get("position", "?"),
-                flag=f1_api.nationality_flag(c.get("nationality")),
-                name=c.get("name", "—"),
-                pts=s.get("points", "0"),
-            )
-        )
-    await message.answer("".join(lines), parse_mode="HTML")
+        rows.append((
+            s.get("position", "?"),
+            f1_api.nationality_flag(c.get("nationality")),
+            c.get("name", "—"),
+            s.get("points", "0"),
+        ))
+    await message.answer(
+        texts.constructors_table(config.f1_season, rows),
+        parse_mode="HTML",
+    )

@@ -5,6 +5,7 @@
   users              — настройки пользователя (часовой пояс, флаги уведомлений)
   sent_notifications — лог отправленных уведомлений (защита от дублей при рестартах)
   sessions_cache     — кешированное расписание сессий Ф1 (обновляется раз в сутки)
+  fsm_storage        — состояния диалогов aiogram (переживают рестарт/пересборку)
 """
 from __future__ import annotations
 
@@ -52,6 +53,13 @@ CREATE TABLE IF NOT EXISTS sessions_cache (
     country        TEXT,
     flag_emoji     TEXT,
     cached_at      TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fsm_storage (
+    key        TEXT PRIMARY KEY,
+    state      TEXT,
+    data       TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions_cache(start_time_utc);
@@ -363,3 +371,63 @@ async def get_all_active_user_ids() -> list[int]:
         cur = await db.execute("SELECT user_id FROM users WHERE paused = 0")
         rows = await cur.fetchall()
         return [r[0] for r in rows]
+
+
+# --- FSM-хранилище (см. fsm_storage.SQLiteStorage) ---
+
+
+async def fsm_set_state(key: str, state: Optional[str]) -> None:
+    async with _connect() as db:
+        await db.execute(
+            """
+            INSERT INTO fsm_storage (key, state, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at
+            """,
+            (key, state, _now_iso()),
+        )
+        # Пустые записи (нет ни состояния, ни данных) не нужны — подчищаем.
+        await db.execute(
+            "DELETE FROM fsm_storage WHERE state IS NULL AND data = '{}'"
+        )
+        await db.commit()
+
+
+async def fsm_get_state(key: str) -> Optional[str]:
+    async with _connect() as db:
+        cur = await db.execute("SELECT state FROM fsm_storage WHERE key = ?", (key,))
+        row = await cur.fetchone()
+        return row[0] if row else None
+
+
+async def fsm_set_data(key: str, data_json: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            """
+            INSERT INTO fsm_storage (key, data, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
+            """,
+            (key, data_json, _now_iso()),
+        )
+        await db.execute(
+            "DELETE FROM fsm_storage WHERE state IS NULL AND data = '{}'"
+        )
+        await db.commit()
+
+
+async def fsm_get_data(key: str) -> str:
+    async with _connect() as db:
+        cur = await db.execute("SELECT data FROM fsm_storage WHERE key = ?", (key,))
+        row = await cur.fetchone()
+        return row[0] if row else "{}"
+
+
+async def cleanup_stale_fsm(days: int = 2) -> int:
+    """Удалить брошенные состояния диалогов (пользователь начал ввод и пропал)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    async with _connect() as db:
+        cur = await db.execute(
+            "DELETE FROM fsm_storage WHERE updated_at < ?",
+            (cutoff,),
+        )
+        await db.commit()
+        return cur.rowcount or 0

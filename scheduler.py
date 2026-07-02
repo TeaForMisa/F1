@@ -30,8 +30,6 @@ log = logging.getLogger(__name__)
 
 LEADS = [120, 60, 30]
 
-_scheduler_ref = None
-
 
 async def _send_notification(bot: Bot, user: db.User, session, lead: int) -> None:
     start = datetime.fromisoformat(session["start_time_utc"])
@@ -117,10 +115,15 @@ async def _daily_cleanup() -> None:
             log.info("Очищено старых записей уведомлений: %d", deleted)
     except Exception as e:
         log.error("Ошибка очистки старых уведомлений: %s", e)
+    try:
+        stale = await db.cleanup_stale_fsm(days=2)
+        if stale:
+            log.info("Очищено брошенных FSM-состояний: %d", stale)
+    except Exception as e:
+        log.error("Ошибка очистки FSM-состояний: %s", e)
 
 
 def init_scheduler(bot: Bot) -> AsyncIOScheduler:
-    global _scheduler_ref
     scheduler = AsyncIOScheduler(timezone=timezone.utc)
 
     scheduler.add_job(
@@ -150,6 +153,5 @@ def init_scheduler(bot: Bot) -> AsyncIOScheduler:
     )
 
     scheduler.start()
-    _scheduler_ref = scheduler
     log.info("Планировщик запущен (интервал проверки: %d сек)", config.scheduler_interval)
     return scheduler

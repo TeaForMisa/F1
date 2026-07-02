@@ -17,13 +17,13 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
 
+import f1_api
 import handlers
 from commands import setup_commands
 from config import config
 from db import init_db
-from f1_api import refresh_sessions_cache
+from fsm_storage import SQLiteStorage
 from scheduler import init_scheduler
 from security import ThrottlingMiddleware
 
@@ -37,23 +37,23 @@ logging.getLogger("apscheduler").setLevel(logging.WARNING)
 log = logging.getLogger("f1bot")
 
 
-async def on_startup(bot: Bot) -> None:
-    log.info("Инициализация БД (путь: %s)…", config.db_path)
-    await init_db()
-
+async def on_startup(bot: Bot):
     log.info("Загрузка расписания сезона %d…", config.f1_season)
     try:
-        count = await refresh_sessions_cache()
+        count = await f1_api.refresh_sessions_cache()
         log.info("Загружено %d сессий", count)
     except Exception as e:
         log.error("Не удалось загрузить расписание: %s. Бот стартует, повторим позже.", e)
 
     log.info("Запуск планировщика уведомлений…")
-    init_scheduler(bot)
+    scheduler = init_scheduler(bot)
 
     await setup_commands(bot)
 
-    await bot.delete_webhook(drop_pending_updates=True)
+    # Не сбрасываем накопившиеся апдейты: на Bothost пересборка занимает
+    # несколько минут, и команды, отправленные в это время, должны обработаться
+    # после рестарта, а не пропасть. От флуда защищает ThrottlingMiddleware.
+    await bot.delete_webhook(drop_pending_updates=False)
 
     if config.admin_ids:
         log.info("Администраторы: %s", ", ".join(str(a) for a in config.admin_ids))
@@ -61,31 +61,35 @@ async def on_startup(bot: Bot) -> None:
         log.warning("ADMIN_IDS не задан — админ-команды недоступны.")
 
     log.info("Бот запущен и готов к работе ✅")
+    return scheduler
 
 
 async def main() -> None:
+    # БД инициализируется до диспетчера: SQLiteStorage (FSM) пишет в ту же базу.
+    log.info("Инициализация БД (путь: %s)…", config.db_path)
+    await init_db()
+
     bot = Bot(
         token=config.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=SQLiteStorage())
 
     dp.message.middleware(ThrottlingMiddleware(throttle_seconds=config.throttle_seconds))
     dp.callback_query.middleware(ThrottlingMiddleware(throttle_seconds=config.throttle_seconds))
 
     handlers.register(dp)
 
-    await on_startup(bot)
+    scheduler = await on_startup(bot)
 
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         try:
-            from scheduler import _scheduler_ref
-            if _scheduler_ref:
-                _scheduler_ref.shutdown(wait=False)
+            scheduler.shutdown(wait=False)
         except Exception:
             pass
+        await f1_api.close_client()
         await bot.session.close()
         log.info("Бот остановлен")
 

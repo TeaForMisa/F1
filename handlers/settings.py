@@ -46,8 +46,13 @@ async def cb_toggle(callback: CallbackQuery) -> None:
 
     await db.toggle_notify(callback.from_user.id, lead)
     user = await db.get_user(callback.from_user.id)
+    if user is None:
+        # Кнопка от старого сообщения, а пользователя нет в БД (например, база
+        # пересоздана) — просим начать заново вместо падения на settings_kb(None).
+        await callback.answer("Нажми /start, чтобы начать.", show_alert=True)
+        return
 
-    is_on = bool(user and getattr(user, _ATTR_MAP[lead]))
+    is_on = bool(getattr(user, _ATTR_MAP[lead]))
     state = "включено ✅" if is_on else "выключено ❌"
     await callback.answer(f"{_LABELS[lead]}: {state}", show_alert=False)
 
