@@ -1,0 +1,193 @@
+"""
+Русские тексты и форматтеры дат/времени в часовом поясе пользователя.
+
+БЕЗОПАСНОСТЬ: все данные из внешних источников (API, БД) экранируются через
+security.esc() перед вставкой в HTML.
+"""
+from __future__ import annotations
+
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from security import esc
+
+MONTHS_RU = [
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+]
+WEEKDAYS_RU = [
+    "понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье",
+]
+
+WELCOME = (
+    "🏎 <b>F1 Бот {season}</b>\n\n"
+    "Я присылаю уведомления перед гонками, квалификациями, спринтами и практиками — "
+    "за 2 часа, 1 час и 30 минут до старта. Времена показываю в твоём часовом поясе.\n\n"
+    "Сначала выбери часовой пояс 👇"
+)
+
+WELCOME_DONE = (
+    "✅ Часовой пояс установлен: <b>{tz}</b>\n\n"
+    "Теперь ты будешь получать уведомления:\n"
+    "  • за <b>2 часа</b> до сессии\n"
+    "  • за <b>1 час</b> до сессии\n"
+    "  • за <b>30 минут</b> до сессии\n\n"
+    "Уведомления можно отключать в /settings. Команды — в /help."
+)
+
+HELP = (
+    "🏎 <b>F1 Бот {season}</b> — команды\n\n"
+    "<b>Расписание</b>\n"
+    "/next — ближайшая сессия\n"
+    "/schedule — расписание гоночного уик-энда\n"
+    "/standings — очки пилотов\n"
+    "/constructors — очки команд\n\n"
+    "<b>Настройки</b>\n"
+    "/timezone — сменить часовой пояс\n"
+    "/settings — управлять уведомлениями\n"
+    "/help — эта справка\n\n"
+    "Уведомления приходят автоматически за 2 ч / 1 ч / 30 мин до каждой сессии."
+)
+
+NO_NEXT_SESSION = "Сезон {season} завершён или расписание ещё не загружено. 🏁"
+
+SETTINGS_HEADER = (
+    "⚙️ <b>Настройки уведомлений</b>\n\n"
+    "Часовой пояс: <b>{tz}</b>\n\n"
+    "Включи/выключи уведомления кнопками ниже:"
+)
+
+
+def notify_text(flag, race_name, session_name, lead_text, when_local, circuit, city) -> str:
+    return (
+        f"🔔 <b>{esc(flag)} {esc(race_name)}</b>\n"
+        f"<b>{esc(session_name)}</b> — через {esc(lead_text)}!\n\n"
+        f"🕐 {esc(when_local)}\n"
+        f"📍 {esc(circuit)}, {esc(city)}"
+    )
+
+
+def next_session_text(flag, race_name, session_name, when_local, circuit, city, countdown) -> str:
+    return (
+        "⏭ <b>Ближайшая сессия</b>\n\n"
+        f"{esc(flag)} <b>{esc(race_name)}</b>\n"
+        f"📋 {esc(session_name)}\n\n"
+        f"🕐 {esc(when_local)}\n"
+        f"📍 {esc(circuit)}, {esc(city)}\n\n"
+        f"До старта: {esc(countdown)}"
+    )
+
+
+def schedule_header(flag, race_name, circuit, city) -> str:
+    return (
+        "🗓 <b>Гоночный уик-энд</b>\n\n"
+        f"{esc(flag)} <b>{esc(race_name)}</b>\n"
+        f"📍 {esc(circuit)}, {esc(city)}\n"
+    )
+
+
+def schedule_item(session_name, when_local) -> str:
+    return f"\n• {esc(session_name)}: {esc(when_local)}"
+
+
+def standings_row(pos, flag, name, team, pts) -> str:
+    return f"{esc(pos)}. {esc(flag)} {esc(name)} — {esc(team)} — <b>{esc(pts)}</b>\n"
+
+
+def constructors_row(pos, name, pts) -> str:
+    return f"{esc(pos)}. {esc(name)} — <b>{esc(pts)}</b>\n"
+
+
+STANDINGS_HEADER = "🏆 <b>Личный зачёт — пилоты {season}</b>\n\n"
+CONSTRUCTORS_HEADER = "🏭 <b>Кубок конструкторов {season}</b>\n\n"
+STANDINGS_EMPTY = "Зачёт пилотов пока недоступен."
+CONSTRUCTORS_EMPTY = "Зачёт конструкторов пока недоступен."
+
+TZ_PICKER_TITLE = "🌍 Выбери часовой пояс:"
+TZ_CUSTOM_PROMPT = (
+    "✏️ Введи свой часовой пояс в формате IANA\n"
+    "(например <code>Europe/Moscow</code> или <code>America/New_York</code>).\n\n"
+    "Полный список: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+)
+TZ_SET_OK = "✅ Часовой пояс установлен: <b>{tz}</b>"
+TZ_INVALID = "❌ Не знаю такой часовой пояс. Проверь написание (например, Europe/Moscow)."
+TZ_PICKER_BACK = "⬅️ Назад к списку"
+
+ERROR_GENERIC = "⚠️ Не удалось получить данные. Попробуй позже."
+
+
+def fmt_dt_local(dt_utc: datetime, tz_name: str) -> str:
+    local = dt_utc.astimezone(ZoneInfo(tz_name))
+    weekday = WEEKDAYS_RU[local.weekday()]
+    return f"{weekday}, {local.day} {MONTHS_RU[local.month - 1]}, {local.hour:02d}:{local.minute:02d}"
+
+
+def fmt_countdown(dt_utc: datetime, now: datetime) -> str:
+    diff = int((dt_utc - now).total_seconds())
+    if diff <= 0:
+        return "идёт сейчас"
+    days, rem = divmod(diff, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{days} д")
+    if hours:
+        parts.append(f"{hours} ч")
+    if not days and minutes:
+        parts.append(f"{minutes} мин")
+    return " ".join(parts) if parts else "меньше минуты"
+
+
+LEAD_TEXTS = {120: "2 часа", 60: "час", 30: "30 минут"}
+
+ADMIN_NOT_ADMIN = "⛔️ Эта команда доступна только администраторам бота."
+
+ADMIN_STATS = (
+    "📊 <b>Статистика бота</b>\n\n"
+    "👥 Пользователей: <b>{total_users}</b>\n"
+    "   • активных: {active_users}\n"
+    "   • на паузе: {paused_users}\n"
+    "   • новых за 24ч: {new_users_24h}\n\n"
+    "🔔 Уведомлений отправлено всего: <b>{total_sent}</b>\n"
+    "   • за последние 24ч: {sent_24h}\n\n"
+    "🗓 Сессий в кеше: {sessions_cached}\n"
+)
+
+ADMIN_USERS_HEADER = "👥 <b>Последние {count} пользователей</b>\n\n"
+ADMIN_USER_ROW = "• {id} | @{username} | {full_name} | tz={tz} | paused={paused}\n"
+ADMIN_NO_USERS = "Пользователей пока нет."
+
+ADMIN_USER_DETAIL = (
+    "👤 <b>Пользователь {user_id}</b>\n\n"
+    "Username: @{username}\n"
+    "Имя: {full_name}\n"
+    "Часовой пояс: {tz}\n"
+    "Создан: {created}\n"
+    "Уведомления: 2ч={n2h} 1ч={n1h} 30м={n30m}\n"
+    "На паузе: {paused}"
+)
+ADMIN_USER_NOT_FOUND = "Пользователь не найден."
+
+ADMIN_BROADCAST_PROMPT = (
+    "📢 Введи текст для рассылки всем активным пользователям.\n\n"
+    "Поддерживается HTML-разметка. Отправка начнётся после твоего сообщения."
+)
+ADMIN_BROADCAST_RESULT = (
+    "✅ Рассылка завершена\n\n"
+    "Отправлено: <b>{sent}</b>\n"
+    "Ошибок: {errors}\n"
+    "Всего активных: {total}"
+)
+
+ADMIN_REFRESH_DONE = "✅ Кеш сессий обновлён: {count} записей."
+ADMIN_REFRESH_FAILED = "❌ Не удалось обновить кеш. Проверь логи."
+
+ADMIN_HELP = (
+    "🔧 <b>Админ-команды</b>\n\n"
+    "/stats — статистика бота\n"
+    "/users — последние 20 пользователей\n"
+    "/user &lt;id&gt; — инфо о пользователе\n"
+    "/broadcast — рассылка всем\n"
+    "/refresh — обновить кеш сессий\n"
+)
