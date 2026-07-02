@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS sessions_cache (
     city           TEXT,
     country        TEXT,
     flag_emoji     TEXT,
+    circuit_id     TEXT,
+    wiki_url       TEXT,
     cached_at      TEXT    NOT NULL
 );
 
@@ -103,6 +105,13 @@ async def init_db() -> None:
         # (например /stats) не блокируют писателя (рассылку/планировщик).
         await db.execute("PRAGMA journal_mode = WAL")
         await db.executescript(SCHEMA)
+        # Миграция существующих баз: CREATE TABLE IF NOT EXISTS не добавляет новые
+        # колонки в уже созданную таблицу, поэтому добавляем их вручную.
+        for column, ddl in (("circuit_id", "TEXT"), ("wiki_url", "TEXT")):
+            try:
+                await db.execute(f"ALTER TABLE sessions_cache ADD COLUMN {column} {ddl}")
+            except Exception:
+                pass  # колонка уже существует
         await db.commit()
 
 
@@ -240,9 +249,9 @@ async def replace_sessions(sessions: list[dict]) -> None:
             """
             INSERT INTO sessions_cache
               (session_key, season, round, race_name, session_type, session_name,
-               start_time_utc, circuit, city, country, flag_emoji, cached_at)
+               start_time_utc, circuit, city, country, flag_emoji, circuit_id, wiki_url, cached_at)
             VALUES (:session_key, :season, :round, :race_name, :session_type, :session_name,
-                    :start_time_utc, :circuit, :city, :country, :flag_emoji, :cached_at)
+                    :start_time_utc, :circuit, :city, :country, :flag_emoji, :circuit_id, :wiki_url, :cached_at)
             """,
             sessions,
         )
@@ -290,6 +299,34 @@ async def get_next_race_weekend(now: datetime) -> list[aiosqlite.Row]:
             ORDER BY start_time_utc ASC
             """,
             (row["round"], now.isoformat()),
+        )
+        return await cur.fetchall()
+
+
+async def get_all_rounds() -> list[aiosqlite.Row]:
+    """Один ряд на этап сезона (для календаря): метаданные + границы времени."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """
+            SELECT round, race_name, country, flag_emoji, circuit, city, circuit_id,
+                   MIN(start_time_utc) AS first_start,
+                   MAX(start_time_utc) AS last_start
+            FROM sessions_cache
+            GROUP BY round
+            ORDER BY round ASC
+            """
+        )
+        return await cur.fetchall()
+
+
+async def get_round(round_no: int) -> list[aiosqlite.Row]:
+    """Все сессии одного этапа, по возрастанию времени."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT * FROM sessions_cache WHERE round = ? ORDER BY start_time_utc ASC",
+            (round_no,),
         )
         return await cur.fetchall()
 

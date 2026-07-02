@@ -76,10 +76,38 @@ def _back_button(target: str, label: str = "⬅️ Назад") -> InlineKeyboar
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏎 Следующая сессия", callback_data="menu:next")],
-        [InlineKeyboardButton(text="🗓 Расписание уик-энда", callback_data="menu:schedule")],
+        [InlineKeyboardButton(text="🗓 Календарь сезона", callback_data="menu:cal")],
         [InlineKeyboardButton(text="🏆 Зачёт пилотов", callback_data="menu:drivers")],
         [InlineKeyboardButton(text="🏭 Кубок конструкторов", callback_data="menu:teams")],
         [InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings")],
+    ])
+
+
+def calendar_kb(items: list[tuple[int, str]]) -> InlineKeyboardMarkup:
+    """items: список (round_no, подпись). Каждая кнопка ведёт на страницу этапа."""
+    rows = [
+        [InlineKeyboardButton(text=label, callback_data=f"menu:round:{round_no}")]
+        for round_no, label in items
+    ]
+    rows.append([_back_button("menu:main", label="🏠 Главное меню")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def track_page_kb(round_no: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📺 Где смотреть", callback_data=f"menu:watch:{round_no}")],
+        [InlineKeyboardButton(text="📚 История трассы", callback_data=f"menu:hist:{round_no}")],
+        [
+            _back_button("menu:cal", label="⬅️ Календарь"),
+            _back_button("menu:main", label="🏠 Меню"),
+        ],
+    ])
+
+
+def track_sub_kb(round_no: int) -> InlineKeyboardMarkup:
+    """Клавиатура подэкранов страницы трассы («Где смотреть», «История»)."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_back_button(f"menu:round:{round_no}", label="⬅️ К трассе")],
     ])
 
 

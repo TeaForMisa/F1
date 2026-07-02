@@ -125,8 +125,11 @@ async def refresh_sessions_cache() -> int:
     for race in races:
         round_no = int(race["round"])
         race_name = race["raceName"]
-        circuit = race["Circuit"]["circuitName"]
-        loc = race["Circuit"]["Location"]
+        circuit_data = race["Circuit"]
+        circuit = circuit_data["circuitName"]
+        circuit_id = circuit_data.get("circuitId")
+        wiki_url = circuit_data.get("url")
+        loc = circuit_data["Location"]
         city = loc["locality"]
         country = loc["country"]
         flag = _flag(country)
@@ -154,6 +157,8 @@ async def refresh_sessions_cache() -> int:
                 "city": city,
                 "country": country,
                 "flag_emoji": flag,
+                "circuit_id": circuit_id,
+                "wiki_url": wiki_url,
                 "cached_at": now_iso,
             })
 

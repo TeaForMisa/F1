@@ -18,6 +18,11 @@ MONTHS_RU = [
 WEEKDAYS_RU = [
     "понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье",
 ]
+WEEKDAYS_SHORT_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+MONTHS_SHORT_RU = [
+    "янв", "фев", "мар", "апр", "мая", "июн",
+    "июл", "авг", "сен", "окт", "ноя", "дек",
+]
 
 
 def welcome_text(name: str | None, season: int) -> str:
@@ -91,6 +96,62 @@ MENU_TZ = (
     "🌍 <b>Часовой пояс</b>\n\n"
     "Выберите из списка или введите свой (кнопка внизу):"
 )
+MENU_CALENDAR = (
+    "🗓 <b>Календарь Формулы 1 — сезон {season}</b>\n\n"
+    "Выберите этап:"
+)
+MENU_CALENDAR_EMPTY = (
+    "🗓 <b>Календарь Формулы 1 — сезон {season}</b>\n\n"
+    "Расписание ещё не загружено. Загляни чуть позже."
+)
+
+WATCH_INFO = (
+    "📺 <b>Где смотреть</b>\n\n"
+    "• <b>F1 TV Pro</b> — официальные трансляции всех сессий там, где сервис доступен: "
+    "f1tv.formula1.com\n"
+    "• На ТВ и у локальных вещателей состав трансляций зависит от страны.\n\n"
+    "Проверь официального вещателя Формулы 1 в своём регионе."
+)
+
+
+def track_header(flag, gp, track_ru, country_ru) -> str:
+    return (
+        f"{esc(flag)} <b>Гран-при {esc(gp)}</b>\n"
+        f"<i>{esc(track_ru)} · {esc(country_ru)}</i>\n\n"
+    )
+
+
+def track_schedule_table(sessions, tz_name: str) -> str:
+    """Моноширинная таблица сессий этапа во времени пользователя."""
+    zi = ZoneInfo(tz_name)
+    names, dates, times = [], [], []
+    for s in sessions:
+        start = datetime.fromisoformat(s["start_time_utc"]).astimezone(zi)
+        names.append(str(s["session_name"]))
+        dates.append(f"{WEEKDAYS_SHORT_RU[start.weekday()]}, {start.day} {MONTHS_SHORT_RU[start.month - 1]}")
+        times.append(f"{start.hour:02d}:{start.minute:02d}")
+
+    nw = max(len(n) for n in names)
+    dw = max(len(d) for d in dates)
+    lines = [f"{n.ljust(nw)}  {d.ljust(dw)}  {t}" for n, d, t in zip(names, dates, times)]
+    body = esc("\n".join(lines))
+    return (
+        "📋 <b>Расписание сессий:</b>\n"
+        f"<pre>{body}</pre>\n"
+        f"🕐 Часовой пояс: <b>{esc(tz_name)}</b>"
+    )
+
+
+def track_history(track_ru, country_ru, city, desc, wiki_url) -> str:
+    parts = [
+        f"📚 <b>{esc(track_ru)}</b>\n",
+        f"📍 {esc(city)}, {esc(country_ru)}\n",
+    ]
+    if desc:
+        parts.append(f"\n{esc(desc)}\n")
+    if wiki_url:
+        parts.append(f'\n🌐 <a href="{esc(wiki_url)}">Подробнее в Википедии</a>')
+    return "".join(parts)
 
 
 # Иконка по типу сессии (session_type из sessions_cache) — единый визуальный

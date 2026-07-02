@@ -15,6 +15,9 @@
   переживают рестарты и пересборки контейнера (на Bothost — папка `/app/data`)
 - **📋 Кнопка «Меню»** — все команды доступны из нативного меню Telegram
   (у админов в меню дополнительно видны админ-команды)
+- **🗓 Календарь сезона** — все этапы (✅ прошедшие / 🏴 предстоящие), у каждого —
+  страница со схемой трассы (официальные изображения F1), расписанием сессий,
+  «Где смотреть» и «Историей трассы»
 
 ## Команды пользователя
 
@@ -94,16 +97,19 @@ f1-bot/
 ├── fsm_storage.py       # персистентное FSM-хранилище (переживает рестарты)
 ├── f1_api.py            # Jolpica-F1 + кеш зачётов + общий HTTP-клиент
 ├── texts.py             # тексты с экранированием HTML
+├── render.py            # рендер экранов (общий для команд и меню)
+├── circuits.py          # RU-данные трасс + ссылки на схемы F1
 ├── keyboards.py         # клавиатуры
 ├── commands.py          # кнопка «Меню» (set_my_commands)
 ├── scheduler.py         # уведомления + ежедневная очистка
 ├── handlers/
 │   ├── admin.py         # /stats /users /user /broadcast /refresh
 │   ├── common.py        # /start, /help, /cancel
+│   ├── menu.py          # /menu, /calendar — inline-меню и страницы трасс
 │   ├── timezone.py      # /timezone
 │   ├── settings.py      # /settings
 │   └── info.py          # /next /schedule /standings /constructors
-├── assets/              # welcome.jpg — фото приветствия (опционально)
+├── assets/              # welcome.jpg + circuits/ (схемы трасс, опционально)
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore

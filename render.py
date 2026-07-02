@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+import circuits
 import db
 import f1_api
 import texts
@@ -77,6 +78,35 @@ async def render_standings() -> str:
             s.get("points", "0"),
         ))
     return texts.standings_table(config.f1_season, rows)
+
+
+def render_track_page(sessions, tz: str) -> str:
+    """Заголовок + расписание сессий этапа (подпись под схемой трассы)."""
+    first = sessions[0]
+    info = circuits.info(first["circuit_id"]) or {}
+    gp = info.get("gp") or first["race_name"]
+    track_ru = info.get("track") or first["circuit"]
+    country_ru = info.get("country") or first["country"]
+    header = texts.track_header(first["flag_emoji"], gp, track_ru, country_ru)
+    table = texts.track_schedule_table(sessions, tz)
+    return header + table
+
+
+def render_track_history(row) -> str:
+    info = circuits.info(row["circuit_id"]) or {}
+    track_ru = info.get("track") or row["circuit"]
+    country_ru = info.get("country") or row["country"]
+    return texts.track_history(
+        track_ru=track_ru,
+        country_ru=country_ru,
+        city=row["city"],
+        desc=info.get("desc", ""),
+        wiki_url=row["wiki_url"],
+    )
+
+
+def circuit_image(circuit_id) -> str | None:
+    return circuits.image_url(circuit_id)
 
 
 async def render_constructors() -> str:
