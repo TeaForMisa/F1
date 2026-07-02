@@ -89,8 +89,13 @@ CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions_cache(start_time_utc);
 CREATE INDEX IF NOT EXISTS idx_sent_lookup ON sent_notifications(session_key, lead_minutes);
 CREATE INDEX IF NOT EXISTS idx_sent_sent_at ON sent_notifications(sent_at);
 CREATE INDEX IF NOT EXISTS idx_users_paused ON users(paused);
-CREATE INDEX IF NOT EXISTS idx_users_premium ON users(premium_until);
 """
+
+# Индексы по колонкам, которые появляются только после миграции (_MIGRATIONS).
+# Их нельзя держать в SCHEMA: на старой базе колонки ещё нет в момент executescript.
+_POST_MIGRATION_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_users_premium ON users(premium_until)",
+)
 
 # Колонки, добавляемые в существующие таблицы (миграция старых баз на Bothost).
 _MIGRATIONS: dict[str, tuple[tuple[str, str], ...]] = {
@@ -168,6 +173,12 @@ async def init_db() -> None:
                     await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
                 except Exception:
                     pass  # колонка уже существует
+        # Индексы по новым колонкам — только после того, как колонки гарантированно есть.
+        for index_sql in _POST_MIGRATION_INDEXES:
+            try:
+                await db.execute(index_sql)
+            except Exception:
+                pass
         await db.commit()
 
 
