@@ -22,13 +22,41 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 
 import db
+import f1_api
 import texts
 from config import config
 from f1_api import refresh_sessions_cache
 
 log = logging.getLogger(__name__)
 
-LEADS = [120, 60, 30]
+# 1440 и 10 — премиум-лиды (за 1 день / за 10 минут), гейтинг в db.get_users_for_notification.
+LEADS = [1440, 120, 60, 30, 10]
+
+# Через сколько минут после старта имеет смысл начинать проверять результаты.
+_RESULTS_DELAY_MIN = {"qualifying": 40, "sprint": 40, "race": 90}
+
+
+async def _safe_send(bot: Bot, user_id: int, text: str) -> bool:
+    """Отправить сообщение с обработкой флуд-контроля и блокировок."""
+    try:
+        await bot.send_message(user_id, text, parse_mode="HTML")
+        return True
+    except TelegramRetryAfter as e:
+        log.warning("Telegram flood control, ждём %s сек", e.retry_after)
+        await asyncio.sleep(e.retry_after)
+        try:
+            await bot.send_message(user_id, text, parse_mode="HTML")
+            return True
+        except Exception as e2:
+            log.error("Повторная ошибка отправки user %s: %s", user_id, e2)
+            return False
+    except TelegramForbiddenError:
+        log.info("Пользователь %s заблокировал бота — ставим на паузу", user_id)
+        await db.pause_user(user_id)
+        return False
+    except Exception as e:
+        log.error("Ошибка отправки пользователю %s: %s", user_id, e)
+        return False
 
 
 async def _send_notification(bot: Bot, user: db.User, session, lead: int) -> None:
@@ -43,20 +71,7 @@ async def _send_notification(bot: Bot, user: db.User, session, lead: int) -> Non
         circuit=session["circuit"],
         city=session["city"],
     )
-    try:
-        await bot.send_message(user.user_id, text, parse_mode="HTML")
-    except TelegramRetryAfter as e:
-        log.warning("Telegram flood control, ждём %s сек", e.retry_after)
-        await asyncio.sleep(e.retry_after)
-        try:
-            await bot.send_message(user.user_id, text, parse_mode="HTML")
-        except Exception as e2:
-            log.error("Повторная ошибка отправки user %s: %s", user.user_id, e2)
-    except TelegramForbiddenError:
-        log.info("Пользователь %s заблокировал бота — отключаем уведомления", user.user_id)
-        await db.pause_user(user.user_id)
-    except Exception as e:
-        log.error("Ошибка отправки уведомления пользователю %s: %s", user.user_id, e)
+    await _safe_send(bot, user.user_id, text)
 
 
 async def _check_and_notify(bot: Bot) -> None:
@@ -99,6 +114,44 @@ async def _check_and_notify(bot: Bot) -> None:
     if total_sent:
         log.info("Отправлено уведомлений: %d", total_sent)
 
+    # Pro: пуш результатов завершившихся сессий.
+    try:
+        await _check_results(bot, now)
+    except Exception as e:
+        log.error("Ошибка проверки результатов: %s", e)
+
+
+async def _check_results(bot: Bot, now: datetime) -> None:
+    """Разослать премиум-подписчикам результаты недавно завершившихся сессий."""
+    try:
+        sessions = await db.get_sessions_awaiting_results(now)
+    except Exception as e:
+        log.error("Ошибка выборки сессий для результатов: %s", e)
+        return
+
+    for session in sessions:
+        start = datetime.fromisoformat(session["start_time_utc"])
+        delay = _RESULTS_DELAY_MIN.get(session["session_type"], 60)
+        if now < start + timedelta(minutes=delay):
+            continue  # ещё рано, результаты точно не готовы
+
+        try:
+            results = await f1_api.fetch_session_results(session["round"], session["session_type"])
+        except Exception as e:
+            log.warning("Не удалось получить результаты %s: %s", session["session_key"], e)
+            continue
+        if not results:
+            continue  # ещё не опубликованы — проверим на следующем тике
+
+        users = await db.get_users_for_results()
+        for user in users:
+            text = texts.results_text(session, results, favorite_driver=user.favorite_driver)
+            await _safe_send(bot, user.user_id, text)
+            await asyncio.sleep(0.04)
+
+        await db.mark_results_sent(session["session_key"])
+        log.info("Результаты %s разосланы (%d подписчиков)", session["session_key"], len(users))
+
 
 async def _daily_refresh() -> None:
     log.info("Запуск ежедневного обновления кеша сессий")
@@ -121,6 +174,10 @@ async def _daily_cleanup() -> None:
             log.info("Очищено брошенных FSM-состояний: %d", stale)
     except Exception as e:
         log.error("Ошибка очистки FSM-состояний: %s", e)
+    try:
+        await db.cleanup_old_results_marks(days=14)
+    except Exception as e:
+        log.error("Ошибка очистки меток результатов: %s", e)
 
 
 def init_scheduler(bot: Bot) -> AsyncIOScheduler:

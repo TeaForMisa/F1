@@ -23,6 +23,7 @@ PUBLIC_COMMANDS: list[BotCommand] = [
     BotCommand(command="constructors", description="🏭 Кубок конструкторов"),
     BotCommand(command="timezone", description="🌍 Часовой пояс"),
     BotCommand(command="settings", description="⚙️ Уведомления"),
+    BotCommand(command="pro", description="⭐ F1 Bot Pro"),
     BotCommand(command="help", description="ℹ️ Помощь"),
     BotCommand(command="cancel", description="❌ Отменить текущее действие"),
 ]
@@ -33,6 +34,7 @@ ADMIN_COMMANDS: list[BotCommand] = PUBLIC_COMMANDS + [
     BotCommand(command="users", description="👥 Пользователи"),
     BotCommand(command="broadcast", description="📢 Рассылка"),
     BotCommand(command="refresh", description="🔄 Обновить кеш"),
+    BotCommand(command="refund", description="↩️ Возврат Stars"),
 ]
 
 

@@ -80,7 +80,39 @@ def main_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🏆 Зачёт пилотов", callback_data="menu:drivers")],
         [InlineKeyboardButton(text="🏭 Кубок конструкторов", callback_data="menu:teams")],
         [InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings")],
+        [InlineKeyboardButton(text="⭐ F1 Bot Pro", callback_data="menu:pro")],
     ])
+
+
+def pro_pitch_kb(price: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"⭐ Оформить за {price}★", callback_data="pro:buy")],
+        [_back_button("menu:main", label="🏠 Главное меню")],
+    ])
+
+
+def pro_manage_kb(user) -> InlineKeyboardMarkup:
+    results_on = "✅" if user.notify_results else "❌"
+    d1_on = "✅" if user.notify_1d else "❌"
+    m10_on = "✅" if user.notify_10min else "❌"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"🏁 Результаты сессий: {results_on}", callback_data="pro:toggle:results")],
+        [InlineKeyboardButton(text="🏎 Избранный пилот", callback_data="pro:fav")],
+        [InlineKeyboardButton(text=f"⏰ За 1 день: {d1_on}", callback_data="pro:toggle:1d")],
+        [InlineKeyboardButton(text=f"⏰ За 10 минут: {m10_on}", callback_data="pro:toggle:10min")],
+        [_back_button("menu:main", label="🏠 Главное меню")],
+    ])
+
+
+def favorite_pick_kb(drivers: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    """drivers: список (driver_id, подпись)."""
+    rows = [
+        [InlineKeyboardButton(text=label, callback_data=f"pro:favset:{driver_id}")]
+        for driver_id, label in drivers
+    ]
+    rows.append([InlineKeyboardButton(text="🚫 Убрать избранного", callback_data="pro:favclear")])
+    rows.append([_back_button("menu:pro", label="⬅️ Назад")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def calendar_kb(items: list[tuple[int, str]]) -> InlineKeyboardMarkup:

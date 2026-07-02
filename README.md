@@ -18,6 +18,10 @@
 - **🗓 Календарь сезона** — все этапы (✅ прошедшие / 🏴 предстоящие), у каждого —
   страница со схемой трассы (официальные изображения F1), расписанием сессий,
   «Где смотреть» и «Историей трассы»
+- **⭐ F1 Bot Pro** — подписка за Telegram Stars (автопродление): пуш результатов
+  сессий, избранный пилот в результатах, напоминания «за 1 день» и «за 10 минут».
+  Цена в `PRO_PRICE_STARS` (тестово 1★). Всё на автопилоте — оплата/продление —
+  входящие апдейты, премиум активен пока `premium_until` в будущем.
 
 ## Команды пользователя
 
@@ -43,6 +47,7 @@
 | `/user <id>` | Подробная информация о пользователе |
 | `/broadcast` | Рассылка сообщения всем активным пользователям |
 | `/refresh` | Принудительное обновление кеша сессий и зачётов |
+| `/refund <id>` | Возврат Telegram Stars пользователю за подписку |
 
 Узнать свой Telegram ID: напиши [@userinfobot](https://t.me/userinfobot).
 
@@ -103,9 +108,10 @@ f1-bot/
 ├── commands.py          # кнопка «Меню» (set_my_commands)
 ├── scheduler.py         # уведомления + ежедневная очистка
 ├── handlers/
-│   ├── admin.py         # /stats /users /user /broadcast /refresh
+│   ├── admin.py         # /stats /users /user /broadcast /refresh /refund
 │   ├── common.py        # /start, /help, /cancel
-│   ├── menu.py          # /menu, /calendar — inline-меню и страницы трасс
+│   ├── menu.py          # /menu, /calendar, /pro — inline-меню, трассы, Pro
+│   ├── payments.py      # Telegram Stars: инвойс, pre_checkout, оплата
 │   ├── timezone.py      # /timezone
 │   ├── settings.py      # /settings
 │   └── info.py          # /next /schedule /standings /constructors

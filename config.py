@@ -63,6 +63,7 @@ class Config:
     callback_throttle_seconds: float
     standings_cache_ttl: int
     max_tz_input_length: int
+    pro_price_stars: int
 
     @classmethod
     def load(cls) -> "Config":
@@ -93,6 +94,8 @@ class Config:
             callback_throttle_seconds=_float_env("CALLBACK_THROTTLE_SECONDS", 0.5),
             standings_cache_ttl=_int_env("STANDINGS_CACHE_TTL", 300),
             max_tz_input_length=_int_env("MAX_TZ_INPUT_LENGTH", 50),
+            # Цена Pro-подписки в Telegram Stars (тестово 1★).
+            pro_price_stars=_int_env("PRO_PRICE_STARS", 1),
         )
 
     def is_admin(self, user_id: int) -> bool:

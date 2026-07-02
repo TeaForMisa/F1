@@ -33,6 +33,7 @@ from aiogram.types import CallbackQuery, Message
 
 import circuits
 import db
+import f1_api
 import keyboards as kb
 import render
 import texts
@@ -336,3 +337,118 @@ async def on_menu_custom_tz(message: Message, state: FSMContext) -> None:
         await message.answer(texts.TZ_SET_OK.format(tz=tz_input), parse_mode="HTML")
     else:
         await message.answer(settings_text, parse_mode="HTML", reply_markup=kb.settings_menu_kb())
+
+
+# ─────────────────────────────── ⭐ Pro ───────────────────────────────
+
+
+def _fmt_until(iso: str | None, tz: str) -> str:
+    try:
+        return texts.fmt_dt_local(datetime.fromisoformat(iso), tz)
+    except Exception:
+        return iso or "—"
+
+
+def _pro_screen(user) -> tuple[str, object]:
+    """Экран Pro: витрина для бесплатного, управление — для подписчика."""
+    if db.is_premium(user):
+        text = texts.PRO_ACTIVE.format(
+            until=_fmt_until(user.premium_until, _tz_of(user)),
+            results="вкл ✅" if user.notify_results else "выкл ❌",
+            fav=user.favorite_driver_name or "не выбран",
+            d1="вкл ✅" if user.notify_1d else "выкл ❌",
+            m10="вкл ✅" if user.notify_10min else "выкл ❌",
+        )
+        return text, kb.pro_manage_kb(user)
+    return texts.PRO_PITCH.format(price=config.pro_price_stars), kb.pro_pitch_kb(config.pro_price_stars)
+
+
+async def _driver_list() -> list[tuple[str, str]]:
+    try:
+        standings = await f1_api.fetch_driver_standings()
+    except Exception as e:
+        log.warning("Не удалось получить список пилотов: %s", e)
+        return []
+    drivers: list[tuple[str, str]] = []
+    for s in standings[:20]:
+        d = s["Driver"]
+        name = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
+        drivers.append((d.get("driverId", ""), f"{f1_api.nationality_flag(d.get('nationality'))} {name}"))
+    return drivers
+
+
+@router.message(Command("pro"))
+async def cmd_pro(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    u = message.from_user
+    user = await db.get_user(u.id) or await db.upsert_user(u.id, u.username, u.full_name)
+    text, markup = _pro_screen(user)
+    await message.answer(text, parse_mode="HTML", reply_markup=markup)
+
+
+@router.callback_query(F.data == "menu:pro")
+async def cb_pro(callback: CallbackQuery) -> None:
+    user = await db.get_user(callback.from_user.id)
+    text, markup = _pro_screen(user)
+    await _show(callback, text, markup)
+
+
+@router.callback_query(F.data.startswith("pro:toggle:"))
+async def cb_pro_toggle(callback: CallbackQuery) -> None:
+    user = await db.get_user(callback.from_user.id)
+    if not db.is_premium(user):
+        await callback.answer(texts.PRO_NEED, show_alert=True)
+        return
+    key = callback.data.rsplit(":", 1)[-1]
+    if key not in ("results", "1d", "10min"):
+        await callback.answer("❌ Неверная кнопка", show_alert=True)
+        return
+    await db.toggle_notify(callback.from_user.id, key)
+    user = await db.get_user(callback.from_user.id)
+    text, markup = _pro_screen(user)
+    await _show(callback, text, markup)
+
+
+@router.callback_query(F.data == "pro:fav")
+async def cb_pro_fav(callback: CallbackQuery) -> None:
+    user = await db.get_user(callback.from_user.id)
+    if not db.is_premium(user):
+        await callback.answer(texts.PRO_NEED, show_alert=True)
+        return
+    drivers = await _driver_list()
+    if not drivers:
+        await callback.answer("Список пилотов пока недоступен, попробуй позже.", show_alert=True)
+        return
+    await _show(callback, texts.PRO_FAV_TITLE, kb.favorite_pick_kb(drivers))
+
+
+@router.callback_query(F.data.startswith("pro:favset:"))
+async def cb_pro_favset(callback: CallbackQuery) -> None:
+    user = await db.get_user(callback.from_user.id)
+    if not db.is_premium(user):
+        await callback.answer(texts.PRO_NEED, show_alert=True)
+        return
+    driver_id = callback.data.split(":", 2)[2]
+    name = driver_id
+    try:
+        for s in await f1_api.fetch_driver_standings():
+            d = s["Driver"]
+            if d.get("driverId") == driver_id:
+                name = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
+                break
+    except Exception:
+        pass
+    await db.set_favorite_driver(callback.from_user.id, driver_id, name)
+    user = await db.get_user(callback.from_user.id)
+    text, markup = _pro_screen(user)
+    await _show(callback, text, markup)
+    await callback.answer(f"Избранный пилот: {name}")
+
+
+@router.callback_query(F.data == "pro:favclear")
+async def cb_pro_favclear(callback: CallbackQuery) -> None:
+    await db.set_favorite_driver(callback.from_user.id, None, None)
+    user = await db.get_user(callback.from_user.id)
+    text, markup = _pro_screen(user)
+    await _show(callback, text, markup)
+    await callback.answer("Избранный пилот убран")

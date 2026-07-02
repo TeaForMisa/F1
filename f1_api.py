@@ -196,3 +196,39 @@ async def fetch_constructor_standings() -> list[dict]:
 
 def invalidate_standings_cache() -> None:
     _cache.clear()
+
+
+# Тип сессии → (endpoint Ergast, ключ массива результатов в ответе).
+_RESULTS_ENDPOINTS = {
+    "race": ("results", "Results"),
+    "qualifying": ("qualifying", "QualifyingResults"),
+    "sprint": ("sprint", "SprintResults"),
+}
+
+
+def _parse_results(items: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for it in items:
+        d = it.get("Driver", {})
+        cons = it.get("Constructor") or {}
+        out.append({
+            "pos": it.get("position") or it.get("positionText") or "?",
+            "driver_id": d.get("driverId"),
+            "name": f"{d.get('givenName', '')} {d.get('familyName', '')}".strip(),
+            "flag": nationality_flag(d.get("nationality")),
+            "team": cons.get("name", "—"),
+        })
+    return out
+
+
+async def fetch_session_results(round_no: int, session_type: str) -> list[dict]:
+    """Результаты гонки/квалификации/спринта. Пустой список — ещё не опубликованы."""
+    endpoint = _RESULTS_ENDPOINTS.get(session_type)
+    if endpoint is None:
+        return []
+    url = f"{API_BASE}/{config.f1_season}/{round_no}/{endpoint[0]}.json"
+    data = await _get_json_with_retry(url)
+    races = data["MRData"]["RaceTable"].get("Races", [])
+    if not races:
+        return []
+    return _parse_results(races[0].get(endpoint[1], []))

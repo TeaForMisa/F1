@@ -7,6 +7,7 @@ security.esc() перед вставкой в HTML.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from security import esc
@@ -64,6 +65,7 @@ HELP = (
     "<b>Настройки</b>\n"
     "/timezone — сменить часовой пояс\n"
     "/settings — управлять уведомлениями\n"
+    "/pro — ⭐ F1 Bot Pro (результаты, избранный пилот)\n"
     "/cancel — отменить текущее действие\n"
     "/help — эта справка\n\n"
     "Уведомления приходят автоматически за 2 ч / 1 ч / 30 мин до каждой сессии."
@@ -302,7 +304,7 @@ def fmt_countdown(dt_utc: datetime, now: datetime) -> str:
     return " ".join(parts) if parts else "меньше минуты"
 
 
-LEAD_TEXTS = {120: "2 часа", 60: "час", 30: "30 минут"}
+LEAD_TEXTS = {1440: "1 день", 120: "2 часа", 60: "час", 30: "30 минут", 10: "10 минут"}
 
 ADMIN_NOT_ADMIN = "⛔️ Эта команда доступна только администраторам бота."
 
@@ -314,6 +316,7 @@ ADMIN_STATS = (
     "   • новых за 24ч: {new_users_24h}\n\n"
     "🔔 Уведомлений отправлено всего: <b>{total_sent}</b>\n"
     "   • за последние 24ч: {sent_24h}\n\n"
+    "⭐ Pro-подписчиков: <b>{premium_active}</b> (платежей: {payments_total})\n\n"
     "🗓 Сессий в кеше: {sessions_cached}\n"
 )
 
@@ -354,4 +357,58 @@ ADMIN_HELP = (
     "/user &lt;id&gt; — инфо о пользователе\n"
     "/broadcast — рассылка всем\n"
     "/refresh — обновить кеш сессий\n"
+    "/refund &lt;id&gt; — вернуть Stars за подписку\n"
 )
+
+
+# --- Pro-подписка (Telegram Stars) ---
+
+PRO_PITCH = (
+    "⭐ <b>F1 Bot Pro</b>\n\n"
+    "Всё базовое остаётся бесплатным. Pro добавляет сверху:\n\n"
+    "🏁 <b>Результаты сессий</b> — итоги квалификаций, спринтов и гонок "
+    "прилетают автоматически, как только опубликованы.\n"
+    "🏎 <b>Избранный пилот</b> — его позиция подсвечивается в результатах.\n"
+    "⏰ <b>Гибкие напоминания</b> — дополнительно «за 1 день» и «за 10 минут».\n\n"
+    "💛 Заодно поддерживаешь развитие бота.\n\n"
+    "Цена: <b>{price} ⭐ / месяц</b>, автопродление. Отменить можно в любой момент "
+    "в настройках Telegram."
+)
+
+PRO_ACTIVE = (
+    "⭐ <b>F1 Bot Pro — активна</b>\n\n"
+    "Действует до: <b>{until}</b>\n\n"
+    "🏁 Результаты сессий: {results}\n"
+    "🏎 Избранный пилот: <b>{fav}</b>\n"
+    "⏰ Напоминание за 1 день: {d1}\n"
+    "⏰ Напоминание за 10 минут: {m10}\n\n"
+    "Управляй подпиской (продление/отмена) в настройках Telegram → «Мои звёзды»."
+)
+
+PRO_PAID = (
+    "✅ <b>Спасибо! F1 Bot Pro активирована.</b>\n\n"
+    "Открой ⭐ Pro в /menu, чтобы включить результаты сессий и выбрать любимого пилота."
+)
+
+PRO_NEED = "Эта функция доступна в ⭐ Pro. Открой раздел Pro, чтобы оформить."
+
+PRO_FAV_TITLE = "🏎 <b>Избранный пилот</b>\n\nВыбери пилота — его результат будет подсвечен:"
+
+
+def results_text(session, results: list[dict], favorite_driver: Optional[str] = None) -> str:
+    icon = _session_icon(session["session_type"])
+    top = results[:10]
+    posw = max((len(str(r["pos"])) for r in top), default=2)
+    rows = [f"{str(r['pos']).rjust(posw)}. {r['name']} — {r['team']}" for r in top]
+    body = esc("\n".join(rows))
+    out = (
+        f"🏁 <b>Результаты</b>\n"
+        f"{esc(session['flag_emoji'])} <b>{esc(session['race_name'])}</b>\n"
+        f"{icon} {esc(session['session_name'])}\n\n"
+        f"<pre>{body}</pre>"
+    )
+    if favorite_driver:
+        fav = next((r for r in results if r["driver_id"] == favorite_driver), None)
+        if fav:
+            out += f"\n🏎 Твой пилот: <b>P{esc(fav['pos'])}</b> — {esc(fav['name'])}"
+    return out

@@ -51,6 +51,7 @@ async def cmd_admin(message: Message) -> None:
 @_admin_only
 async def cmd_stats(message: Message) -> None:
     stats = await db.get_stats()
+    premium = await db.get_premium_stats()
     text = texts.ADMIN_STATS.format(
         total_users=stats["total_users"],
         active_users=stats["active_users"],
@@ -59,6 +60,8 @@ async def cmd_stats(message: Message) -> None:
         total_sent=stats["total_sent"],
         sent_24h=stats["sent_24h"],
         sessions_cached=stats["sessions_cached"],
+        premium_active=premium["premium_active"],
+        payments_total=premium["payments_total"],
     )
     await message.answer(text, parse_mode="HTML")
 
@@ -181,3 +184,23 @@ async def cmd_refresh(message: Message) -> None:
     except Exception as e:
         log.error("Ошибка ручного обновления кеша: %s", e)
         await message.answer(texts.ADMIN_REFRESH_FAILED)
+
+
+@router.message(Command("refund"))
+@_admin_only
+async def cmd_refund(message: Message) -> None:
+    parts = (message.text or "").split(None, 1)
+    user_id = sanitize_int(parts[1].strip(), default=0) if len(parts) > 1 else 0
+    if user_id <= 0:
+        await message.answer("Использование: <code>/refund &lt;user_id&gt;</code>", parse_mode="HTML")
+        return
+    charge_id = await db.get_sub_charge_id(user_id)
+    if not charge_id:
+        await message.answer("У пользователя нет платежа Stars для возврата.")
+        return
+    try:
+        await message.bot.refund_star_payment(user_id, charge_id)
+        await message.answer(f"✅ Возврат Stars пользователю {user_id} выполнен.")
+    except Exception as e:
+        log.error("Ошибка возврата Stars user %s: %s", user_id, e)
+        await message.answer(f"❌ Не удалось вернуть Stars: {esc(str(e))}", parse_mode="HTML")

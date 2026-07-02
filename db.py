@@ -2,10 +2,12 @@
 Асинхронная работа с SQLite.
 
 Таблицы:
-  users              — настройки пользователя (часовой пояс, флаги уведомлений)
+  users              — настройки пользователя (часовой пояс, флаги уведомлений, Pro)
   sent_notifications — лог отправленных уведомлений (защита от дублей при рестартах)
   sessions_cache     — кешированное расписание сессий Ф1 (обновляется раз в сутки)
   fsm_storage        — состояния диалогов aiogram (переживают рестарт/пересборку)
+  processed_payments — обработанные платежи Stars (идемпотентность автосписаний)
+  results_sent       — по каким сессиям результаты уже разосланы (Pro)
 """
 from __future__ import annotations
 
@@ -27,6 +29,13 @@ CREATE TABLE IF NOT EXISTS users (
     notify_2h      INTEGER NOT NULL DEFAULT 1,
     notify_1h      INTEGER NOT NULL DEFAULT 1,
     notify_30min   INTEGER NOT NULL DEFAULT 1,
+    notify_1d      INTEGER NOT NULL DEFAULT 0,
+    notify_10min   INTEGER NOT NULL DEFAULT 0,
+    notify_results INTEGER NOT NULL DEFAULT 0,
+    favorite_driver      TEXT,
+    favorite_driver_name TEXT,
+    premium_until  TEXT,
+    sub_charge_id  TEXT,
     paused         INTEGER NOT NULL DEFAULT 0,
     created_at     TEXT    NOT NULL,
     updated_at     TEXT    NOT NULL
@@ -64,11 +73,43 @@ CREATE TABLE IF NOT EXISTS fsm_storage (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS processed_payments (
+    charge_id  TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    amount     INTEGER NOT NULL,
+    created_at TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS results_sent (
+    session_key TEXT PRIMARY KEY,
+    sent_at     TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions_cache(start_time_utc);
 CREATE INDEX IF NOT EXISTS idx_sent_lookup ON sent_notifications(session_key, lead_minutes);
 CREATE INDEX IF NOT EXISTS idx_sent_sent_at ON sent_notifications(sent_at);
 CREATE INDEX IF NOT EXISTS idx_users_paused ON users(paused);
+CREATE INDEX IF NOT EXISTS idx_users_premium ON users(premium_until);
 """
+
+# Колонки, добавляемые в существующие таблицы (миграция старых баз на Bothost).
+_MIGRATIONS: dict[str, tuple[tuple[str, str], ...]] = {
+    "sessions_cache": (("circuit_id", "TEXT"), ("wiki_url", "TEXT")),
+    "users": (
+        ("notify_1d", "INTEGER NOT NULL DEFAULT 0"),
+        ("notify_10min", "INTEGER NOT NULL DEFAULT 0"),
+        ("notify_results", "INTEGER NOT NULL DEFAULT 0"),
+        ("favorite_driver", "TEXT"),
+        ("favorite_driver_name", "TEXT"),
+        ("premium_until", "TEXT"),
+        ("sub_charge_id", "TEXT"),
+    ),
+}
+
+
+def _rget(row: aiosqlite.Row, key: str, default=None):
+    """Безопасный доступ к колонке (для полей, которые могут отсутствовать в выборке)."""
+    return row[key] if key in row.keys() else default
 
 
 class User:
@@ -80,8 +121,18 @@ class User:
         self.notify_2h: bool = bool(row["notify_2h"])
         self.notify_1h: bool = bool(row["notify_1h"])
         self.notify_30min: bool = bool(row["notify_30min"])
+        self.notify_1d: bool = bool(_rget(row, "notify_1d", 0))
+        self.notify_10min: bool = bool(_rget(row, "notify_10min", 0))
+        self.notify_results: bool = bool(_rget(row, "notify_results", 0))
+        self.favorite_driver: Optional[str] = _rget(row, "favorite_driver")
+        self.favorite_driver_name: Optional[str] = _rget(row, "favorite_driver_name")
+        self.premium_until: Optional[str] = _rget(row, "premium_until")
         self.paused: bool = bool(row["paused"])
         self.created_at: Optional[str] = row["created_at"]
+
+    @property
+    def is_premium(self) -> bool:
+        return bool(self.premium_until) and self.premium_until > _now_iso()
 
 
 _db_path: Optional[str] = None
@@ -89,6 +140,10 @@ _db_path: Optional[str] = None
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def is_premium(user: Optional["User"]) -> bool:
+    return bool(user) and user.is_premium
 
 
 async def init_db() -> None:
@@ -107,11 +162,12 @@ async def init_db() -> None:
         await db.executescript(SCHEMA)
         # Миграция существующих баз: CREATE TABLE IF NOT EXISTS не добавляет новые
         # колонки в уже созданную таблицу, поэтому добавляем их вручную.
-        for column, ddl in (("circuit_id", "TEXT"), ("wiki_url", "TEXT")):
-            try:
-                await db.execute(f"ALTER TABLE sessions_cache ADD COLUMN {column} {ddl}")
-            except Exception:
-                pass  # колонка уже существует
+        for table, columns in _MIGRATIONS.items():
+            for column, ddl in columns:
+                try:
+                    await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+                except Exception:
+                    pass  # колонка уже существует
         await db.commit()
 
 
@@ -165,7 +221,10 @@ async def set_timezone(user_id: int, tz: str) -> None:
         await db.commit()
 
 
-_LEAD_COLUMNS = {"2h": "notify_2h", "1h": "notify_1h", "30min": "notify_30min"}
+_LEAD_COLUMNS = {
+    "2h": "notify_2h", "1h": "notify_1h", "30min": "notify_30min",
+    "1d": "notify_1d", "10min": "notify_10min", "results": "notify_results",
+}
 
 
 async def toggle_notify(user_id: int, lead: str) -> None:
@@ -216,13 +275,23 @@ async def mark_sent(user_id: int, session_key: str, lead_minutes: int) -> None:
         await db.commit()
 
 
-_LEAD_COLUMNS_BY_MIN = {120: "notify_2h", 60: "notify_1h", 30: "notify_30min"}
+_LEAD_COLUMNS_BY_MIN = {
+    1440: "notify_1d", 120: "notify_2h", 60: "notify_1h", 30: "notify_30min", 10: "notify_10min",
+}
+# Лиды, доступные только по Pro-подписке.
+_PREMIUM_LEADS = {1440, 10}
 
 
 async def get_users_for_notification(session_key: str, lead_minutes: int) -> list[User]:
     column = _LEAD_COLUMNS_BY_MIN.get(lead_minutes)
     if column is None:
         return []
+    premium_only = lead_minutes in _PREMIUM_LEADS
+    params: list = [session_key, lead_minutes]
+    premium_clause = ""
+    if premium_only:
+        premium_clause = "AND u.premium_until IS NOT NULL AND u.premium_until > ?"
+        params.append(_now_iso())
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -235,8 +304,9 @@ async def get_users_for_notification(session_key: str, lead_minutes: int) -> lis
             WHERE u.{column} = 1
               AND u.paused = 0
               AND s.user_id IS NULL
+              {premium_clause}
             """,
-            (session_key, lead_minutes),
+            params,
         )
         rows = await cur.fetchall()
         return [User(r) for r in rows]
@@ -333,7 +403,8 @@ async def get_round(round_no: int) -> list[aiosqlite.Row]:
 
 async def get_sessions_for_notifications(now: datetime) -> list[aiosqlite.Row]:
     now_iso = now.isoformat()
-    horizon_iso = (now + timedelta(hours=2, minutes=1)).isoformat()
+    # 24 ч + 1 мин — чтобы ловить и премиум-лид «за 1 день» (1440 мин).
+    horizon_iso = (now + timedelta(hours=24, minutes=1)).isoformat()
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
@@ -466,5 +537,112 @@ async def cleanup_stale_fsm(days: int = 2) -> int:
             "DELETE FROM fsm_storage WHERE updated_at < ?",
             (cutoff,),
         )
+        await db.commit()
+        return cur.rowcount or 0
+
+
+# --- Pro-подписка (Telegram Stars) ---
+
+
+async def set_premium(user_id: int, until_iso: str, charge_id: Optional[str]) -> None:
+    """Записать/продлить премиум до until_iso (ISO UTC). Вызывается на каждую оплату."""
+    async with _connect() as db:
+        await db.execute(
+            "UPDATE users SET premium_until = ?, sub_charge_id = ?, updated_at = ? WHERE user_id = ?",
+            (until_iso, charge_id, _now_iso(), user_id),
+        )
+        await db.commit()
+
+
+async def record_payment(charge_id: str, user_id: int, amount: int) -> bool:
+    """Зафиксировать платёж. True — новый, False — уже обрабатывали (защита от дублей)."""
+    async with _connect() as db:
+        cur = await db.execute(
+            "INSERT OR IGNORE INTO processed_payments (charge_id, user_id, amount, created_at) VALUES (?, ?, ?, ?)",
+            (charge_id, user_id, amount, _now_iso()),
+        )
+        await db.commit()
+        return cur.rowcount > 0
+
+
+async def get_sub_charge_id(user_id: int) -> Optional[str]:
+    async with _connect() as db:
+        cur = await db.execute("SELECT sub_charge_id FROM users WHERE user_id = ?", (user_id,))
+        row = await cur.fetchone()
+        return row[0] if row and row[0] else None
+
+
+async def set_favorite_driver(user_id: int, driver_id: Optional[str], name: Optional[str]) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "UPDATE users SET favorite_driver = ?, favorite_driver_name = ?, updated_at = ? WHERE user_id = ?",
+            (driver_id, name, _now_iso(), user_id),
+        )
+        await db.commit()
+
+
+async def get_premium_stats() -> dict:
+    async with _connect() as db:
+        cur = await db.execute(
+            "SELECT COUNT(*) AS c FROM users WHERE premium_until IS NOT NULL AND premium_until > ?",
+            (_now_iso(),),
+        )
+        active = (await cur.fetchone())[0]
+        cur = await db.execute("SELECT COUNT(*) AS c FROM processed_payments")
+        payments = (await cur.fetchone())[0]
+        return {"premium_active": active, "payments_total": payments}
+
+
+# --- Результаты сессий (Pro) ---
+
+
+async def get_users_for_results() -> list[User]:
+    """Активные премиум-подписчики с включённым пушем результатов."""
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """
+            SELECT * FROM users
+            WHERE notify_results = 1 AND paused = 0
+              AND premium_until IS NOT NULL AND premium_until > ?
+            """,
+            (_now_iso(),),
+        )
+        return [User(r) for r in await cur.fetchall()]
+
+
+async def get_sessions_awaiting_results(now: datetime, hours: int = 6) -> list[aiosqlite.Row]:
+    """Недавно завершившиеся гонки/квалы/спринты, по которым результаты ещё не разосланы."""
+    lo = (now - timedelta(hours=hours)).isoformat()
+    hi = now.isoformat()
+    async with _connect() as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """
+            SELECT c.* FROM sessions_cache c
+            LEFT JOIN results_sent r ON r.session_key = c.session_key
+            WHERE c.start_time_utc <= ? AND c.start_time_utc >= ?
+              AND c.session_type IN ('race', 'qualifying', 'sprint')
+              AND r.session_key IS NULL
+            ORDER BY c.start_time_utc ASC
+            """,
+            (hi, lo),
+        )
+        return await cur.fetchall()
+
+
+async def mark_results_sent(session_key: str) -> None:
+    async with _connect() as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO results_sent (session_key, sent_at) VALUES (?, ?)",
+            (session_key, _now_iso()),
+        )
+        await db.commit()
+
+
+async def cleanup_old_results_marks(days: int = 14) -> int:
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    async with _connect() as db:
+        cur = await db.execute("DELETE FROM results_sent WHERE sent_at < ?", (cutoff,))
         await db.commit()
         return cur.rowcount or 0
