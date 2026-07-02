@@ -14,7 +14,8 @@ from config import config
 log = logging.getLogger(__name__)
 
 PUBLIC_COMMANDS: list[BotCommand] = [
-    BotCommand(command="start", description="🏠 Главное меню"),
+    BotCommand(command="start", description="🏠 Старт / приветствие"),
+    BotCommand(command="menu", description="📋 Меню с кнопками"),
     BotCommand(command="next", description="🏎 Ближайшая сессия"),
     BotCommand(command="schedule", description="🗓 Расписание уик-энда"),
     BotCommand(command="standings", description="🏆 Личный зачёт"),

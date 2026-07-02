@@ -71,12 +71,14 @@ async def main() -> None:
 
     bot = Bot(
         token=config.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True),
     )
     dp = Dispatcher(storage=SQLiteStorage())
 
     dp.message.middleware(ThrottlingMiddleware(throttle_seconds=config.throttle_seconds))
-    dp.callback_query.middleware(ThrottlingMiddleware(throttle_seconds=config.throttle_seconds))
+    # Нажатия инлайн-кнопок троттлим слабее: навигация по меню должна быть
+    # отзывчивой (полный throttle_seconds отсекал бы клики по меню как спам).
+    dp.callback_query.middleware(ThrottlingMiddleware(throttle_seconds=config.callback_throttle_seconds))
 
     handlers.register(dp)
 

@@ -25,6 +25,18 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _float_env(name: str, default: float) -> float:
+    """Как _int_env, но для дробных значений (например, троттлинг < 1 сек)."""
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        log.warning("Переменная %s=%r не число — использую %s", name, raw, default)
+        return default
+
+
 def _parse_admin_ids(raw: str) -> tuple[int, ...]:
     """Распарсить ADMIN_IDS='123,456,789' → (123, 456, 789)."""
     ids: list[int] = []
@@ -48,6 +60,7 @@ class Config:
     scheduler_interval: int
     admin_ids: tuple[int, ...]
     throttle_seconds: int
+    callback_throttle_seconds: float
     standings_cache_ttl: int
     max_tz_input_length: int
 
@@ -77,6 +90,7 @@ class Config:
             scheduler_interval=_int_env("SCHEDULER_INTERVAL", 30),
             admin_ids=_parse_admin_ids(os.getenv("ADMIN_IDS", "")),
             throttle_seconds=_int_env("THROTTLE_SECONDS", 3),
+            callback_throttle_seconds=_float_env("CALLBACK_THROTTLE_SECONDS", 0.5),
             standings_cache_ttl=_int_env("STANDINGS_CACHE_TTL", 300),
             max_tz_input_length=_int_env("MAX_TZ_INPUT_LENGTH", 50),
         )
