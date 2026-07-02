@@ -61,7 +61,7 @@ async def cb_tz_custom(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
-@router.message(TzState.waiting_custom, F.text)
+@router.message(TzState.waiting_custom, F.text, ~F.text.startswith("/"))
 async def on_custom_tz(message: Message, state: FSMContext) -> None:
     tz_input = (message.text or "").strip()
 

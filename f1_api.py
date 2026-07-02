@@ -29,6 +29,23 @@ COUNTRY_FLAGS = {
     "Brazil": "🇧🇷", "Qatar": "🇶🇦", "UAE": "🇦🇪", "Argentina": "🇦🇷",
 }
 
+# Ergast/Jolpica отдают национальность пилота/команды отдельным полем в формате
+# прилагательного ("British", "Dutch" и т.д.) — это НЕ страна проведения этапа,
+# поэтому нужна отдельная таблица соответствия.
+NATIONALITY_FLAGS = {
+    "British": "🇬🇧", "Dutch": "🇳🇱", "Monegasque": "🇲🇨", "Spanish": "🇪🇸",
+    "Mexican": "🇲🇽", "Finnish": "🇫🇮", "French": "🇫🇷", "Australian": "🇦🇺",
+    "Canadian": "🇨🇦", "German": "🇩🇪", "Thai": "🇹🇭", "Japanese": "🇯🇵",
+    "Danish": "🇩🇰", "American": "🇺🇸", "Chinese": "🇨🇳", "Italian": "🇮🇹",
+    "Brazilian": "🇧🇷", "Argentine": "🇦🇷", "Argentinian": "🇦🇷",
+    "New Zealander": "🇳🇿", "Belgian": "🇧🇪", "Austrian": "🇦🇹",
+    "Swedish": "🇸🇪", "Polish": "🇵🇱", "Russian": "🇷🇺", "Indian": "🇮🇳",
+    "Indonesian": "🇮🇩", "Swiss": "🇨🇭", "Portuguese": "🇵🇹",
+    "Hungarian": "🇭🇺", "South African": "🇿🇦", "Venezuelan": "🇻🇪",
+    "Colombian": "🇨🇴", "Irish": "🇮🇪", "Uruguayan": "🇺🇾",
+    "Malaysian": "🇲🇾", "Emirati": "🇦🇪",
+}
+
 SESSION_TYPES = [
     ("practice1", "Свободная практика 1", "FirstPractice"),
     ("practice2", "Свободная практика 2", "SecondPractice"),
@@ -42,6 +59,11 @@ SESSION_TYPES = [
 
 def _flag(country: str) -> str:
     return COUNTRY_FLAGS.get(country, "🏁")
+
+
+def nationality_flag(nationality: str | None) -> str:
+    """Флаг страны пилота/команды по полю nationality из Ergast/Jolpica API."""
+    return NATIONALITY_FLAGS.get((nationality or "").strip(), "🏳️")
 
 
 def _parse_dt(date_str: str, time_str: str | None) -> datetime:

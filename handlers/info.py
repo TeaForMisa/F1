@@ -34,6 +34,7 @@ async def cmd_next(message: Message) -> None:
 
     start = datetime.fromisoformat(session["start_time_utc"])
     text = texts.next_session_text(
+        session_type=session["session_type"],
         flag=session["flag_emoji"],
         race_name=session["race_name"],
         session_name=session["session_name"],
@@ -67,6 +68,7 @@ async def cmd_schedule(message: Message) -> None:
         start = datetime.fromisoformat(s["start_time_utc"])
         lines.append(
             texts.schedule_item(
+                session_type=s["session_type"],
                 session_name=s["session_name"],
                 when_local=texts.fmt_dt_local(start, tz),
             )
@@ -88,14 +90,14 @@ async def cmd_standings(message: Message) -> None:
         return
 
     lines = [texts.STANDINGS_HEADER.format(season=config.f1_season)]
-    for s in standings[:15]:
+    for s in standings:
         d = s["Driver"]
         team = s["Constructors"][0]["name"] if s.get("Constructors") else "—"
-        name = f"{d.get('givenName', '')} {d.get('familyName', '')}"
+        name = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
         lines.append(
             texts.standings_row(
                 pos=s.get("position", "?"),
-                flag="🏁",
+                flag=f1_api.nationality_flag(d.get("nationality")),
                 name=name,
                 team=team,
                 pts=s.get("points", "0"),
@@ -119,10 +121,12 @@ async def cmd_constructors(message: Message) -> None:
 
     lines = [texts.CONSTRUCTORS_HEADER.format(season=config.f1_season)]
     for s in standings:
+        c = s.get("Constructor", {})
         lines.append(
             texts.constructors_row(
                 pos=s.get("position", "?"),
-                name=s.get("Constructor", {}).get("name", "—"),
+                flag=f1_api.nationality_flag(c.get("nationality")),
+                name=c.get("name", "—"),
                 pts=s.get("points", "0"),
             )
         )

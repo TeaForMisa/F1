@@ -6,6 +6,7 @@ from pathlib import Path
 
 from aiogram import Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, Message
 
 import db
@@ -51,3 +52,13 @@ async def cmd_help(message: Message) -> None:
         texts.HELP.format(season=config.f1_season),
         parse_mode="HTML",
     )
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext) -> None:
+    """Отменить текущее действие (ввод часового пояса, рассылку и т.п.)."""
+    if await state.get_state() is None:
+        await message.answer("Нечего отменять — активных действий нет.")
+        return
+    await state.clear()
+    await message.answer("❌ Действие отменено.")

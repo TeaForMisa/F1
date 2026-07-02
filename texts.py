@@ -58,6 +58,7 @@ HELP = (
     "<b>Настройки</b>\n"
     "/timezone — сменить часовой пояс\n"
     "/settings — управлять уведомлениями\n"
+    "/cancel — отменить текущее действие\n"
     "/help — эта справка\n\n"
     "Уведомления приходят автоматически за 2 ч / 1 ч / 30 мин до каждой сессии."
 )
@@ -71,23 +72,42 @@ SETTINGS_HEADER = (
 )
 
 
-def notify_text(flag, race_name, session_name, lead_text, when_local, circuit, city) -> str:
+# Иконка по типу сессии (session_type из sessions_cache) — единый визуальный
+# язык для уведомлений, /next и /schedule.
+SESSION_ICONS = {
+    "practice1": "🔧",
+    "practice2": "🔧",
+    "practice3": "🔧",
+    "sprint_qualifying": "⏱",
+    "sprint": "🏁",
+    "qualifying": "⏱",
+    "race": "🏆",
+}
+
+
+def _session_icon(session_type: str) -> str:
+    return SESSION_ICONS.get(session_type, "🏎")
+
+
+def notify_text(session_type, flag, race_name, session_name, lead_text, when_local, circuit, city) -> str:
+    icon = _session_icon(session_type)
     return (
         f"🔔 <b>{esc(flag)} {esc(race_name)}</b>\n"
-        f"<b>{esc(session_name)}</b> — через {esc(lead_text)}!\n\n"
+        f"{icon} <b>{esc(session_name)}</b> — через {esc(lead_text)}!\n\n"
         f"🕐 {esc(when_local)}\n"
         f"📍 {esc(circuit)}, {esc(city)}"
     )
 
 
-def next_session_text(flag, race_name, session_name, when_local, circuit, city, countdown) -> str:
+def next_session_text(session_type, flag, race_name, session_name, when_local, circuit, city, countdown) -> str:
+    icon = _session_icon(session_type)
     return (
         "⏭ <b>Ближайшая сессия</b>\n\n"
         f"{esc(flag)} <b>{esc(race_name)}</b>\n"
-        f"📋 {esc(session_name)}\n\n"
+        f"{icon} {esc(session_name)}\n\n"
         f"🕐 {esc(when_local)}\n"
         f"📍 {esc(circuit)}, {esc(city)}\n\n"
-        f"До старта: {esc(countdown)}"
+        f"⏳ До старта: <b>{esc(countdown)}</b>"
     )
 
 
@@ -99,16 +119,26 @@ def schedule_header(flag, race_name, circuit, city) -> str:
     )
 
 
-def schedule_item(session_name, when_local) -> str:
-    return f"\n• {esc(session_name)}: {esc(when_local)}"
+def schedule_item(session_type, session_name, when_local) -> str:
+    icon = _session_icon(session_type)
+    return f"\n{icon} <b>{esc(session_name)}</b>\n    🕐 {esc(when_local)}\n"
+
+
+_MEDALS = {"1": "🥇", "2": "🥈", "3": "🥉"}
+
+
+def _position_marker(pos) -> str:
+    return _MEDALS.get(str(pos), f"{esc(pos)}.")
 
 
 def standings_row(pos, flag, name, team, pts) -> str:
-    return f"{esc(pos)}. {esc(flag)} {esc(name)} — {esc(team)} — <b>{esc(pts)}</b>\n"
+    marker = _position_marker(pos)
+    return f"{marker} {esc(flag)} <b>{esc(name)}</b> — {esc(team)} — <b>{esc(pts)}</b>\n"
 
 
-def constructors_row(pos, name, pts) -> str:
-    return f"{esc(pos)}. {esc(name)} — <b>{esc(pts)}</b>\n"
+def constructors_row(pos, flag, name, pts) -> str:
+    marker = _position_marker(pos)
+    return f"{marker} {esc(flag)} <b>{esc(name)}</b> — <b>{esc(pts)}</b>\n"
 
 
 STANDINGS_HEADER = "🏆 <b>Личный зачёт — пилоты {season}</b>\n\n"
@@ -120,7 +150,8 @@ TZ_PICKER_TITLE = "🌍 Выбери часовой пояс:"
 TZ_CUSTOM_PROMPT = (
     "✏️ Введи свой часовой пояс в формате IANA\n"
     "(например <code>Europe/Moscow</code> или <code>America/New_York</code>).\n\n"
-    "Полный список: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+    "Полный список: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones\n\n"
+    "Передумал? Отправь /cancel."
 )
 TZ_SET_OK = "✅ Часовой пояс установлен: <b>{tz}</b>"
 TZ_INVALID = "❌ Не знаю такой часовой пояс. Проверь написание (например, Europe/Moscow)."
@@ -184,7 +215,8 @@ ADMIN_USER_NOT_FOUND = "Пользователь не найден."
 
 ADMIN_BROADCAST_PROMPT = (
     "📢 Введи текст для рассылки всем активным пользователям.\n\n"
-    "Поддерживается HTML-разметка. Отправка начнётся после твоего сообщения."
+    "Поддерживается HTML-разметка. Отправка начнётся после твоего сообщения.\n\n"
+    "Передумал? Отправь /cancel."
 )
 ADMIN_BROADCAST_RESULT = (
     "✅ Рассылка завершена\n\n"

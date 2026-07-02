@@ -22,6 +22,7 @@ PUBLIC_COMMANDS: list[BotCommand] = [
     BotCommand(command="timezone", description="🌍 Часовой пояс"),
     BotCommand(command="settings", description="⚙️ Уведомления"),
     BotCommand(command="help", description="ℹ️ Помощь"),
+    BotCommand(command="cancel", description="❌ Отменить текущее действие"),
 ]
 
 ADMIN_COMMANDS: list[BotCommand] = PUBLIC_COMMANDS + [

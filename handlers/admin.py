@@ -122,7 +122,7 @@ async def cmd_broadcast(message: Message, state: FSMContext) -> None:
     await message.answer(texts.ADMIN_BROADCAST_PROMPT, parse_mode="HTML")
 
 
-@router.message(BroadcastState.waiting_text, F.text)
+@router.message(BroadcastState.waiting_text, F.text, ~F.text.startswith("/"))
 @_admin_only
 async def on_broadcast_text(message: Message, state: FSMContext) -> None:
     await state.clear()

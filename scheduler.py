@@ -36,6 +36,7 @@ _scheduler_ref = None
 async def _send_notification(bot: Bot, user: db.User, session, lead: int) -> None:
     start = datetime.fromisoformat(session["start_time_utc"])
     text = texts.notify_text(
+        session_type=session["session_type"],
         flag=session["flag_emoji"],
         race_name=session["race_name"],
         session_name=session["session_name"],
