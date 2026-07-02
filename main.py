@@ -20,6 +20,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
 import handlers
+from commands import setup_commands
 from config import config
 from db import init_db
 from f1_api import refresh_sessions_cache
@@ -49,6 +50,8 @@ async def on_startup(bot: Bot) -> None:
 
     log.info("Запуск планировщика уведомлений…")
     init_scheduler(bot)
+
+    await setup_commands(bot)
 
     await bot.delete_webhook(drop_pending_updates=True)
 
