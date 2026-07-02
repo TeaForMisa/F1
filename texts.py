@@ -105,13 +105,22 @@ MENU_CALENDAR_EMPTY = (
     "Расписание ещё не загружено. Загляни чуть позже."
 )
 
-WATCH_INFO = (
-    "📺 <b>Где смотреть</b>\n\n"
-    "• <b>F1 TV Pro</b> — официальные трансляции всех сессий там, где сервис доступен: "
-    "f1tv.formula1.com\n"
-    "• На ТВ и у локальных вещателей состав трансляций зависит от страны.\n\n"
-    "Проверь официального вещателя Формулы 1 в своём регионе."
-)
+_WATCH_STREAMS = [
+    ("Алексей Попов / Наталья Фабричная", "https://vk.com/gasnutognif1"),
+    ("Станиславский", "https://vk.com/stanizlavskylive"),
+    ("Simply Formula (Роман)", "https://vk.com/simply_plus"),
+]
+
+
+def watch_text(gp, track_ru, country_ru) -> str:
+    lines = [
+        f"📺 <b>Где смотреть — Гран-при {esc(gp)}</b>\n",
+        f"<i>{esc(track_ru)} · {esc(country_ru)}</i>\n\n",
+        "Подборка русскоязычных трансляций:\n\n",
+    ]
+    for name, url in _WATCH_STREAMS:
+        lines.append(f'• {esc(name)} — <a href="{esc(url)}">ссылка</a>\n')
+    return "".join(lines)
 
 
 def track_header(flag, gp, track_ru, country_ru) -> str:

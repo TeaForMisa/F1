@@ -217,7 +217,11 @@ async def cb_watch(callback: CallbackQuery) -> None:
     if round_no is None:
         await callback.answer("❌ Ошибка", show_alert=True)
         return
-    await _update(callback, texts.WATCH_INFO, kb.track_sub_kb(round_no))
+    sessions = await db.get_round(round_no)
+    if not sessions:
+        await callback.answer("Нет данных по этому этапу.", show_alert=True)
+        return
+    await _update(callback, render.render_watch(sessions[0]), kb.track_sub_kb(round_no))
 
 
 @router.callback_query(F.data.startswith("menu:hist:"))

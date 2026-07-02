@@ -92,6 +92,14 @@ def render_track_page(sessions, tz: str) -> str:
     return header + table
 
 
+def render_watch(row) -> str:
+    info = circuits.info(row["circuit_id"]) or {}
+    gp = info.get("gp") or row["race_name"]
+    track_ru = info.get("track") or row["circuit"]
+    country_ru = info.get("country") or row["country"]
+    return texts.watch_text(gp, track_ru, country_ru)
+
+
 def render_track_history(row) -> str:
     info = circuits.info(row["circuit_id"]) or {}
     track_ru = info.get("track") or row["circuit"]
