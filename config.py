@@ -25,6 +25,13 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in ("1", "true", "yes", "on", "да")
+
+
 def _float_env(name: str, default: float) -> float:
     """Как _int_env, но для дробных значений (например, троттлинг < 1 сек)."""
     raw = os.getenv(name, "").strip()
@@ -64,6 +71,7 @@ class Config:
     standings_cache_ttl: int
     max_tz_input_length: int
     pro_price_stars: int
+    pro_subscription: bool
 
     @classmethod
     def load(cls) -> "Config":
@@ -94,8 +102,12 @@ class Config:
             callback_throttle_seconds=_float_env("CALLBACK_THROTTLE_SECONDS", 0.5),
             standings_cache_ttl=_int_env("STANDINGS_CACHE_TTL", 300),
             max_tz_input_length=_int_env("MAX_TZ_INPUT_LENGTH", 50),
-            # Цена Pro-подписки в Telegram Stars (тестово 1★).
+            # Цена Pro-доступа в Telegram Stars (тестово 1★).
             pro_price_stars=_int_env("PRO_PRICE_STARS", 1),
+            # Рекуррентная подписка Stars. По умолчанию выкл: свежим ботам Telegram
+            # не даёт subscription-инвойсы (SUBSCRIPTION_EXPORT_MISSING) — используем
+            # разовый платёж на 30 дней. Включи, когда подписка станет доступна боту.
+            pro_subscription=_bool_env("PRO_SUBSCRIPTION", False),
         )
 
     def is_admin(self, user_id: int) -> bool:

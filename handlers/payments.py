@@ -29,16 +29,20 @@ _SUBSCRIPTION_PERIOD = 2592000
 
 
 async def _send_invoice(message: Message) -> None:
+    # Рекуррентная подписка — только если явно включена (иначе Telegram отдаёт
+    # SUBSCRIPTION_EXPORT_MISSING на ботах без включённых подписок). По умолчанию —
+    # разовый платёж на 30 дней (продление повторной покупкой).
+    subscription = _SUBSCRIPTION_PERIOD if config.pro_subscription else None
     await message.answer_invoice(
         title="F1 Bot Pro",
         description=(
             "Результаты сессий, избранный пилот и гибкие напоминания. "
-            "Автопродление раз в месяц, отмена в любой момент."
+            "Доступ на 30 дней."
         ),
         payload="pro_monthly",
         currency="XTR",
-        prices=[LabeledPrice(label="F1 Bot Pro — 1 месяц", amount=config.pro_price_stars)],
-        subscription_period=_SUBSCRIPTION_PERIOD,
+        prices=[LabeledPrice(label="F1 Bot Pro — 30 дней", amount=config.pro_price_stars)],
+        subscription_period=subscription,
         provider_token="",  # для Stars токен провайдера не нужен
     )
 
@@ -62,22 +66,32 @@ async def on_paid(message: Message) -> None:
     u = message.from_user
 
     # Гарантируем, что строка пользователя существует (вдруг оплатил до /start).
-    await db.upsert_user(u.id, u.username, u.full_name)
+    user = await db.upsert_user(u.id, u.username, u.full_name)
 
     # Идемпотентность: при drop_pending_updates=False апдейт может прийти повторно.
     is_new = await db.record_payment(charge_id, u.id, sp.total_amount)
 
     exp = sp.subscription_expiration_date
     if exp is not None:
+        # Подписка: Telegram сам посчитал дату окончания.
         until_iso = exp.astimezone(timezone.utc).isoformat()
     else:
-        until_iso = (datetime.now(timezone.utc) + timedelta(seconds=_SUBSCRIPTION_PERIOD)).isoformat()
+        # Разовый платёж: +30 дней от текущего срока (если ещё активен) или от сейчас.
+        base = datetime.now(timezone.utc)
+        if user and user.premium_until:
+            try:
+                current = datetime.fromisoformat(user.premium_until)
+                if current > base:
+                    base = current
+            except ValueError:
+                pass
+        until_iso = (base + timedelta(seconds=_SUBSCRIPTION_PERIOD)).isoformat()
 
-    await db.set_premium(message.from_user.id, until_iso, charge_id)
+    await db.set_premium(u.id, until_iso, charge_id)
 
     if is_new:
         await message.answer(texts.PRO_PAID, parse_mode="HTML")
     log.info(
         "Оплата Pro: user=%s amount=%s★ new=%s until=%s",
-        message.from_user.id, sp.total_amount, is_new, until_iso,
+        u.id, sp.total_amount, is_new, until_iso,
     )
