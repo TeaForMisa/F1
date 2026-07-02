@@ -21,8 +21,18 @@ from config import config
 
 log = logging.getLogger(__name__)
 
+_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 # Локальные схемы трасс (необязательно): assets/circuits/<circuit_id>.png|jpg|…
-_CIRCUITS_DIR = Path(__file__).resolve().parent / "assets" / "circuits"
+_CIRCUITS_DIR = _ASSETS_DIR / "circuits"
+
+
+def pro_photo():
+    """Фото для питча ⭐ Pro (assets/pro.jpg|png|…), если положено. Иначе None."""
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        local = _ASSETS_DIR / f"pro.{ext}"
+        if local.exists():
+            return FSInputFile(local)
+    return None
 
 
 async def render_next(tz: str) -> tuple[str, object]:

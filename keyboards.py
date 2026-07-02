@@ -86,7 +86,7 @@ def main_menu_kb() -> InlineKeyboardMarkup:
 
 def pro_pitch_kb(price: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"⭐ Оформить за {price}★", callback_data="pro:buy")],
+        [InlineKeyboardButton(text=f"💛 Поддержать за {price}★ / 30 дней", callback_data="pro:buy")],
         [_back_button("menu:main", label="🏠 Главное меню")],
     ])
 

@@ -61,7 +61,7 @@ def _round_from(data: str) -> int | None:
         return None
 
 
-async def _show(callback: CallbackQuery, text: str, markup) -> None:
+async def _show(callback: CallbackQuery, text: str, markup, answer_text: str = "") -> None:
     """
     Показать текстовый экран меню.
 
@@ -83,10 +83,10 @@ async def _show(callback: CallbackQuery, text: str, markup) -> None:
             # «message is not modified» — повторный клик по тому же разделу; не ошибка.
             if "not modified" not in str(e).lower():
                 log.warning("Не удалось обновить меню: %s", e)
-    await callback.answer()
+    await callback.answer(answer_text)
 
 
-async def _update(callback: CallbackQuery, text: str, markup) -> None:
+async def _update(callback: CallbackQuery, text: str, markup, answer_text: str = "") -> None:
     """Обновить текущее сообщение на месте: подпись, если фото, иначе текст."""
     msg = callback.message
     try:
@@ -97,11 +97,11 @@ async def _update(callback: CallbackQuery, text: str, markup) -> None:
     except TelegramBadRequest as e:
         if "not modified" not in str(e).lower():
             log.warning("Не удалось обновить страницу: %s", e)
-    await callback.answer()
+    await callback.answer(answer_text)
 
 
-async def _to_photo(callback: CallbackQuery, photo: str, caption: str, markup) -> None:
-    """Перейти с текстового экрана на фото-страницу трассы (удалить текст, прислать фото)."""
+async def _to_photo(callback: CallbackQuery, photo, caption: str, markup, answer_text: str = "") -> None:
+    """Перейти с текстового экрана на фото-страницу (удалить текст, прислать фото)."""
     msg = callback.message
     try:
         await msg.delete()
@@ -110,11 +110,10 @@ async def _to_photo(callback: CallbackQuery, photo: str, caption: str, markup) -
     try:
         await msg.answer_photo(photo, caption=caption, reply_markup=markup, parse_mode="HTML")
     except Exception as e:
-        # Схема не загрузилась (битый URL / CDN недоступен) — не теряем страницу,
-        # показываем её текстом.
-        log.warning("Не удалось отправить схему трассы (%s): %s", photo, e)
+        # Фото не загрузилось (битый файл/URL) — не теряем экран, показываем текстом.
+        log.warning("Не удалось отправить фото (%s): %s", photo, e)
         await msg.answer(caption, reply_markup=markup, parse_mode="HTML")
-    await callback.answer()
+    await callback.answer(answer_text)
 
 
 @router.message(Command("menu"))
@@ -377,20 +376,43 @@ async def _driver_list() -> list[tuple[str, str]]:
     return drivers
 
 
+async def _pro_render(callback: CallbackQuery, answer_text: str = "") -> None:
+    """
+    Показать экран ⭐ Pro с учётом фото-питча (assets/pro.jpg, опционально):
+    если фото есть и мы уже на фото-сообщении — меняем подпись на месте,
+    если фото есть, а сообщение текстовое — переходим на фото,
+    если файла нет вовсе — обычный текстовый экран (как раньше).
+    """
+    user = await db.get_user(callback.from_user.id)
+    text, markup = _pro_screen(user)
+    photo = render.pro_photo()
+    if photo and callback.message.photo:
+        await _update(callback, text, markup, answer_text)
+    elif photo:
+        await _to_photo(callback, photo, text, markup, answer_text)
+    else:
+        await _show(callback, text, markup, answer_text)
+
+
 @router.message(Command("pro"))
 async def cmd_pro(message: Message, state: FSMContext) -> None:
     await state.clear()
     u = message.from_user
     user = await db.get_user(u.id) or await db.upsert_user(u.id, u.username, u.full_name)
     text, markup = _pro_screen(user)
+    photo = render.pro_photo()
+    if photo:
+        try:
+            await message.answer_photo(photo, caption=text, parse_mode="HTML", reply_markup=markup)
+            return
+        except Exception as e:
+            log.warning("Не удалось отправить фото ⭐ Pro: %s", e)
     await message.answer(text, parse_mode="HTML", reply_markup=markup)
 
 
 @router.callback_query(F.data == "menu:pro")
 async def cb_pro(callback: CallbackQuery) -> None:
-    user = await db.get_user(callback.from_user.id)
-    text, markup = _pro_screen(user)
-    await _show(callback, text, markup)
+    await _pro_render(callback)
 
 
 @router.callback_query(F.data.startswith("pro:toggle:"))
@@ -404,9 +426,7 @@ async def cb_pro_toggle(callback: CallbackQuery) -> None:
         await callback.answer("❌ Неверная кнопка", show_alert=True)
         return
     await db.toggle_notify(callback.from_user.id, key)
-    user = await db.get_user(callback.from_user.id)
-    text, markup = _pro_screen(user)
-    await _show(callback, text, markup)
+    await _pro_render(callback)
 
 
 @router.callback_query(F.data == "pro:fav")
@@ -439,16 +459,11 @@ async def cb_pro_favset(callback: CallbackQuery) -> None:
     except Exception:
         pass
     await db.set_favorite_driver(callback.from_user.id, driver_id, name)
-    user = await db.get_user(callback.from_user.id)
-    text, markup = _pro_screen(user)
-    await _show(callback, text, markup)
-    await callback.answer(f"Избранный пилот: {name}")
+    await _pro_render(callback, answer_text=f"Избранный пилот: {name}")
 
 
 @router.callback_query(F.data == "pro:favclear")
 async def cb_pro_favclear(callback: CallbackQuery) -> None:
     await db.set_favorite_driver(callback.from_user.id, None, None)
-    user = await db.get_user(callback.from_user.id)
-    text, markup = _pro_screen(user)
-    await _show(callback, text, markup)
+    await _pro_render(callback, answer_text="Избранный пилот убран")
     await callback.answer("Избранный пилот убран")
