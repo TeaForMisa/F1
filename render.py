@@ -2,7 +2,7 @@
 Рендер информационных экранов в готовый HTML-текст.
 
 Вынесено отдельно, чтобы один и тот же вывод использовали и текстовые команды
-(/next, /schedule, /standings, /constructors), и inline-меню (handlers/menu.py) —
+(/next, /schedule, /standings, /constructors), и inline-меню (handlers/menu.py) -
 без дублирования логики.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def pro_photo():
 
 
 async def render_next(tz: str) -> tuple[str, object]:
-    """Возвращает (подпись, circuit_id|None). circuit_id None — нет фото/сезон завершён."""
+    """Возвращает (подпись, circuit_id|None). circuit_id None - нет фото/сезон завершён."""
     now = datetime.now(timezone.utc)
     session = await db.get_next_session(now)
     if not session:
@@ -87,7 +87,7 @@ async def render_standings() -> str:
     rows = []
     for s in standings:
         d = s["Driver"]
-        team = s["Constructors"][0]["name"] if s.get("Constructors") else "—"
+        team = s["Constructors"][0]["name"] if s.get("Constructors") else "-"
         name = f"{d.get('givenName', '')} {d.get('familyName', '')}".strip()
         rows.append((
             s.get("position", "?"),
@@ -157,7 +157,7 @@ async def render_constructors() -> str:
         rows.append((
             s.get("position", "?"),
             f1_api.nationality_flag(c.get("nationality")),
-            c.get("name", "—"),
+            c.get("name", "-"),
             s.get("points", "0"),
         ))
     return texts.constructors_table(config.f1_season, rows)

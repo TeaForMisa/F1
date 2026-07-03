@@ -39,7 +39,7 @@ ADMIN_COMMANDS: list[BotCommand] = PUBLIC_COMMANDS + [
 
 
 async def setup_commands(bot: Bot) -> None:
-    """Задать кнопку «Меню»: у всех — публичные команды, у админов — ещё и админские."""
+    """Задать кнопку «Меню»: у всех - публичные команды, у админов - ещё и админские."""
     await bot.set_my_commands(PUBLIC_COMMANDS, scope=BotCommandScopeDefault())
     for admin_id in config.admin_ids:
         try:

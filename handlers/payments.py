@@ -1,12 +1,12 @@
 """
 Оплата Pro-доступа через Telegram Stars (валюта XTR).
 
-Весь биллинг — это входящие апдейты:
+Весь биллинг - это входящие апдейты:
   • pro:buy            → выставляем счёт (sendInvoice; по умолчанию разовый
-                          платёж на 30 дней — PRO_SUBSCRIPTION включает рекуррентную
+                          платёж на 30 дней - PRO_SUBSCRIPTION включает рекуррентную
                           подписку, если она доступна боту);
   • pre_checkout_query → подтверждаем (ответить нужно за ~10 сек, без тяжёлой логики);
-  • successful_payment → двигаем premium_until в БД. Идемпотентность — по charge_id.
+  • successful_payment → двигаем premium_until в БД. Идемпотентность - по charge_id.
 
 Инлайн-экраны Pro (витрина/управление/избранный пилот) живут в handlers/menu.py.
 """
@@ -25,24 +25,24 @@ from config import config
 log = logging.getLogger(__name__)
 router = Router(name="payments")
 
-# 30 дней — единственный допустимый период подписки для Telegram Stars.
+# 30 дней - единственный допустимый период подписки для Telegram Stars.
 _SUBSCRIPTION_PERIOD = 2592000
 
 
 async def _send_invoice(message: Message) -> None:
-    # Рекуррентная подписка — только если явно включена (иначе Telegram отдаёт
-    # SUBSCRIPTION_EXPORT_MISSING на ботах без включённых подписок). По умолчанию —
+    # Рекуррентная подписка - только если явно включена (иначе Telegram отдаёт
+    # SUBSCRIPTION_EXPORT_MISSING на ботах без включённых подписок). По умолчанию -
     # разовый платёж на 30 дней (продление повторной покупкой).
     subscription = _SUBSCRIPTION_PERIOD if config.pro_subscription else None
     await message.answer_invoice(
-        title="⭐ F1 Bot Pro — поддержать разработку",
+        title="⭐ F1 Bot Pro - поддержать разработку",
         description=(
             "Результаты сессий, избранный пилот и доп. напоминания на 30 дней. "
-            "Без автопродления — звёзды спишутся только один раз."
+            "Без автопродления - звёзды спишутся только один раз."
         ),
         payload="pro_monthly",
         currency="XTR",
-        prices=[LabeledPrice(label="F1 Bot Pro — 30 дней, без автопродления", amount=config.pro_price_stars)],
+        prices=[LabeledPrice(label="F1 Bot Pro - 30 дней, без автопродления", amount=config.pro_price_stars)],
         subscription_period=subscription,
         provider_token="",  # для Stars токен провайдера не нужен
     )

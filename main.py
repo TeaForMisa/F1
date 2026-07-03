@@ -58,7 +58,7 @@ async def on_startup(bot: Bot):
     if config.admin_ids:
         log.info("Администраторы: %s", ", ".join(str(a) for a in config.admin_ids))
     else:
-        log.warning("ADMIN_IDS не задан — админ-команды недоступны.")
+        log.warning("ADMIN_IDS не задан - админ-команды недоступны.")
 
     log.info("Бот запущен и готов к работе ✅")
     return scheduler

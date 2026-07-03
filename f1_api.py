@@ -52,7 +52,7 @@ COUNTRY_FLAGS = {
 }
 
 # Ergast/Jolpica отдают национальность пилота/команды отдельным полем в формате
-# прилагательного ("British", "Dutch" и т.д.) — это НЕ страна проведения этапа,
+# прилагательного ("British", "Dutch" и т.д.) - это НЕ страна проведения этапа,
 # поэтому нужна отдельная таблица соответствия.
 NATIONALITY_FLAGS = {
     "British": "🇬🇧", "Dutch": "🇳🇱", "Monegasque": "🇲🇨", "Spanish": "🇪🇸",
@@ -216,13 +216,13 @@ def _parse_results(items: list[dict]) -> list[dict]:
             "driver_id": d.get("driverId"),
             "name": f"{d.get('givenName', '')} {d.get('familyName', '')}".strip(),
             "flag": nationality_flag(d.get("nationality")),
-            "team": cons.get("name", "—"),
+            "team": cons.get("name", "-"),
         })
     return out
 
 
 async def fetch_session_results(round_no: int, session_type: str) -> list[dict]:
-    """Результаты гонки/квалификации/спринта. Пустой список — ещё не опубликованы."""
+    """Результаты гонки/квалификации/спринта. Пустой список - ещё не опубликованы."""
     endpoint = _RESULTS_ENDPOINTS.get(session_type)
     if endpoint is None:
         return []

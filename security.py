@@ -1,9 +1,9 @@
 """
 Модуль безопасности:
-  • esc()              — экранирование HTML (защита от инъекций в данных из API)
-  • ThrottlingMiddleware — ограничение частоты команд от одного пользователя
-  • is_valid_tz()      — валидация часового пояса
-  • sanitize_int()     — безопасный парсинг целых чисел из ненадёжного ввода
+  • esc()              - экранирование HTML (защита от инъекций в данных из API)
+  • ThrottlingMiddleware - ограничение частоты команд от одного пользователя
+  • is_valid_tz()      - валидация часового пояса
+  • sanitize_int()     - безопасный парсинг целых чисел из ненадёжного ввода
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def esc(value: Any) -> str:
 
 
 def is_valid_tz(tz: str) -> bool:
-    """Проверить, что строка — корректный IANA часовой пояс."""
+    """Проверить, что строка - корректный IANA часовой пояс."""
     if not tz or len(tz) > config.max_tz_input_length:
         return False
     if not _TZ_PATTERN.match(tz):

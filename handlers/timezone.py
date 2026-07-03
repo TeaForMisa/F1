@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 import db
 import texts
 from config import config
-from keyboards import timezone_picker, timezone_picker_back
+from keyboards import open_menu_kb, timezone_picker, timezone_picker_back
 from security import is_valid_tz
 
 log = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ async def _update_prompt(callback: CallbackQuery, text: str, reply_markup=None) 
     """Обновить исходное сообщение выбора часового пояса.
 
     Сообщение от /start приходит с фото (caption), и Telegram не позволяет
-    превратить его в текстовое через edit_text — поэтому в этом случае старое
+    превратить его в текстовое через edit_text - поэтому в этом случае старое
     сообщение удаляется и вместо него отправляется новое текстовое.
     """
     if callback.message.photo:
@@ -75,7 +75,11 @@ async def on_custom_tz(message: Message, state: FSMContext) -> None:
 
     await db.set_timezone(message.from_user.id, tz_input)
     await state.clear()
-    await message.answer(texts.TZ_SET_OK.format(tz=tz_input), parse_mode="HTML")
+    await message.answer(
+        texts.TZ_SET_OK.format(tz=tz_input),
+        parse_mode="HTML",
+        reply_markup=open_menu_kb(),
+    )
 
 
 @router.callback_query(F.data.startswith("tz:"))
@@ -97,7 +101,7 @@ async def cb_tz_select(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
 
     if user and user.timezone != config.default_timezone:
-        await _update_prompt(callback, texts.TZ_SET_OK.format(tz=tz))
+        await _update_prompt(callback, texts.TZ_SET_OK.format(tz=tz), reply_markup=open_menu_kb())
     else:
-        await _update_prompt(callback, texts.WELCOME_DONE.format(tz=tz))
+        await _update_prompt(callback, texts.WELCOME_DONE.format(tz=tz), reply_markup=open_menu_kb())
     await callback.answer()

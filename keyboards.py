@@ -147,6 +147,14 @@ def menu_back_kb(target: str = "menu:main") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[_back_button(target)]])
 
 
+def open_menu_kb() -> InlineKeyboardMarkup:
+    """Одна кнопка перехода в главное меню - вешается на сообщение после успешного
+    выбора часового пояса, чтобы пользователь не терялся, а сразу шёл в /menu."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="📋 Главное меню", callback_data="menu:main")]]
+    )
+
+
 def next_view_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Обновить", callback_data="menu:next")],

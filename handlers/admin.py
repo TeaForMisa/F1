@@ -78,8 +78,8 @@ async def cmd_users(message: Message) -> None:
         lines.append(
             texts.ADMIN_USER_ROW.format(
                 id=u.user_id,
-                username=esc(u.username or "—"),
-                full_name=esc(u.full_name or "—"),
+                username=esc(u.username or "-"),
+                full_name=esc(u.full_name or "-"),
                 tz=esc(u.timezone),
                 paused="да" if u.paused else "нет",
             )
@@ -106,10 +106,10 @@ async def cmd_user(message: Message) -> None:
 
     text = texts.ADMIN_USER_DETAIL.format(
         user_id=esc(user.user_id),
-        username=esc(user.username or "—"),
-        full_name=esc(user.full_name or "—"),
+        username=esc(user.username or "-"),
+        full_name=esc(user.full_name or "-"),
         tz=esc(user.timezone),
-        created=esc(user.created_at or "—"),
+        created=esc(user.created_at or "-"),
         n2h="✅" if user.notify_2h else "❌",
         n1h="✅" if user.notify_1h else "❌",
         n30m="✅" if user.notify_30min else "❌",

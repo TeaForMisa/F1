@@ -6,7 +6,7 @@
   • Для каждой сессии и каждого lead (2ч / 1ч / 30мин) проверяет:
       - наступило ли время отправки (now >= session_start - lead)
       - сессия ещё не началась (now < session_start)
-    Если оба условия — рассылает уведомление всем пользователям, у которых
+    Если оба условия - рассылает уведомление всем пользователям, у которых
     включён соответствующий флаг и которые ещё не получили это уведомление.
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ from f1_api import refresh_sessions_cache
 
 log = logging.getLogger(__name__)
 
-# 1440 и 10 — премиум-лиды (за 1 день / за 10 минут), гейтинг в db.get_users_for_notification.
+# 1440 и 10 - премиум-лиды (за 1 день / за 10 минут), гейтинг в db.get_users_for_notification.
 LEADS = [1440, 120, 60, 30, 10]
 
 # Через сколько минут после старта имеет смысл начинать проверять результаты.
@@ -51,7 +51,7 @@ async def _safe_send(bot: Bot, user_id: int, text: str) -> bool:
             log.error("Повторная ошибка отправки user %s: %s", user_id, e2)
             return False
     except TelegramForbiddenError:
-        log.info("Пользователь %s заблокировал бота — ставим на паузу", user_id)
+        log.info("Пользователь %s заблокировал бота - ставим на паузу", user_id)
         await db.pause_user(user_id)
         return False
     except Exception as e:
@@ -141,7 +141,7 @@ async def _check_results(bot: Bot, now: datetime) -> None:
             log.warning("Не удалось получить результаты %s: %s", session["session_key"], e)
             continue
         if not results:
-            continue  # ещё не опубликованы — проверим на следующем тике
+            continue  # ещё не опубликованы - проверим на следующем тике
 
         users = await db.get_users_for_results()
         for user in users:

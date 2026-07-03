@@ -2,12 +2,12 @@
 Асинхронная работа с SQLite.
 
 Таблицы:
-  users              — настройки пользователя (часовой пояс, флаги уведомлений, Pro)
-  sent_notifications — лог отправленных уведомлений (защита от дублей при рестартах)
-  sessions_cache     — кешированное расписание сессий Ф1 (обновляется раз в сутки)
-  fsm_storage        — состояния диалогов aiogram (переживают рестарт/пересборку)
-  processed_payments — обработанные платежи Stars (идемпотентность автосписаний)
-  results_sent       — по каким сессиям результаты уже разосланы (Pro)
+  users              - настройки пользователя (часовой пояс, флаги уведомлений, Pro)
+  sent_notifications - лог отправленных уведомлений (защита от дублей при рестартах)
+  sessions_cache     - кешированное расписание сессий Ф1 (обновляется раз в сутки)
+  fsm_storage        - состояния диалогов aiogram (переживают рестарт/пересборку)
+  processed_payments - обработанные платежи Stars (идемпотентность автосписаний)
+  results_sent       - по каким сессиям результаты уже разосланы (Pro)
 """
 from __future__ import annotations
 
@@ -161,7 +161,7 @@ async def init_db() -> None:
         except OSError:
             pass
     async with aiosqlite.connect(_db_path) as db:
-        # WAL сохраняется в самом файле БД и переживает переподключения — читатели
+        # WAL сохраняется в самом файле БД и переживает переподключения - читатели
         # (например /stats) не блокируют писателя (рассылку/планировщик).
         await db.execute("PRAGMA journal_mode = WAL")
         await db.executescript(SCHEMA)
@@ -173,7 +173,7 @@ async def init_db() -> None:
                     await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
                 except Exception:
                     pass  # колонка уже существует
-        # Индексы по новым колонкам — только после того, как колонки гарантированно есть.
+        # Индексы по новым колонкам - только после того, как колонки гарантированно есть.
         for index_sql in _POST_MIGRATION_INDEXES:
             try:
                 await db.execute(index_sql)
@@ -414,7 +414,7 @@ async def get_round(round_no: int) -> list[aiosqlite.Row]:
 
 async def get_sessions_for_notifications(now: datetime) -> list[aiosqlite.Row]:
     now_iso = now.isoformat()
-    # 24 ч + 1 мин — чтобы ловить и премиум-лид «за 1 день» (1440 мин).
+    # 24 ч + 1 мин - чтобы ловить и премиум-лид «за 1 день» (1440 мин).
     horizon_iso = (now + timedelta(hours=24, minutes=1)).isoformat()
     async with _connect() as db:
         db.row_factory = aiosqlite.Row
@@ -504,7 +504,7 @@ async def fsm_set_state(key: str, state: Optional[str]) -> None:
             """,
             (key, state, _now_iso()),
         )
-        # Пустые записи (нет ни состояния, ни данных) не нужны — подчищаем.
+        # Пустые записи (нет ни состояния, ни данных) не нужны - подчищаем.
         await db.execute(
             "DELETE FROM fsm_storage WHERE state IS NULL AND data = '{}'"
         )
@@ -566,7 +566,7 @@ async def set_premium(user_id: int, until_iso: str, charge_id: Optional[str]) ->
 
 
 async def record_payment(charge_id: str, user_id: int, amount: int) -> bool:
-    """Зафиксировать платёж. True — новый, False — уже обрабатывали (защита от дублей)."""
+    """Зафиксировать платёж. True - новый, False - уже обрабатывали (защита от дублей)."""
     async with _connect() as db:
         cur = await db.execute(
             "INSERT OR IGNORE INTO processed_payments (charge_id, user_id, amount, created_at) VALUES (?, ?, ?, ?)",

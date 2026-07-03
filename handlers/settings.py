@@ -48,7 +48,7 @@ async def cb_toggle(callback: CallbackQuery) -> None:
     user = await db.get_user(callback.from_user.id)
     if user is None:
         # Кнопка от старого сообщения, а пользователя нет в БД (например, база
-        # пересоздана) — просим начать заново вместо падения на settings_kb(None).
+        # пересоздана) - просим начать заново вместо падения на settings_kb(None).
         await callback.answer("Нажми /start, чтобы начать.", show_alert=True)
         return
 

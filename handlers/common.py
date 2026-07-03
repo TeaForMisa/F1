@@ -17,7 +17,7 @@ from keyboards import timezone_picker
 log = logging.getLogger(__name__)
 router = Router(name="common")
 
-# Фото для приветственного сообщения. Если файла нет — бот пришлёт обычный текст.
+# Фото для приветственного сообщения. Если файла нет - бот пришлёт обычный текст.
 WELCOME_PHOTO = Path(__file__).resolve().parent.parent / "assets" / "welcome.jpg"
 
 
@@ -58,7 +58,7 @@ async def cmd_help(message: Message) -> None:
 async def cmd_cancel(message: Message, state: FSMContext) -> None:
     """Отменить текущее действие (ввод часового пояса, рассылку и т.п.)."""
     if await state.get_state() is None:
-        await message.answer("Нечего отменять — активных действий нет.")
+        await message.answer("Нечего отменять - активных действий нет.")
         return
     await state.clear()
     await message.answer("❌ Действие отменено.")

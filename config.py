@@ -14,14 +14,14 @@ log = logging.getLogger(__name__)
 
 
 def _int_env(name: str, default: int) -> int:
-    """Прочитать целочисленную переменную окружения; при мусоре — default, не падение."""
+    """Прочитать целочисленную переменную окружения; при мусоре - default, не падение."""
     raw = os.getenv(name, "").strip()
     if not raw:
         return default
     try:
         return int(raw)
     except ValueError:
-        log.warning("Переменная %s=%r не число — использую %d", name, raw, default)
+        log.warning("Переменная %s=%r не число - использую %d", name, raw, default)
         return default
 
 
@@ -40,7 +40,7 @@ def _float_env(name: str, default: float) -> float:
     try:
         return float(raw)
     except ValueError:
-        log.warning("Переменная %s=%r не число — использую %s", name, raw, default)
+        log.warning("Переменная %s=%r не число - использую %s", name, raw, default)
         return default
 
 
@@ -105,7 +105,7 @@ class Config:
             # Цена Pro-доступа в Telegram Stars (тестово 1★).
             pro_price_stars=_int_env("PRO_PRICE_STARS", 1),
             # Рекуррентная подписка Stars. По умолчанию выкл: свежим ботам Telegram
-            # не даёт subscription-инвойсы (SUBSCRIPTION_EXPORT_MISSING) — используем
+            # не даёт subscription-инвойсы (SUBSCRIPTION_EXPORT_MISSING) - используем
             # разовый платёж на 30 дней. Включи, когда подписка станет доступна боту.
             pro_subscription=_bool_env("PRO_SUBSCRIPTION", False),
         )
